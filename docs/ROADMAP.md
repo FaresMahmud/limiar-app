@@ -33,10 +33,23 @@ repositório git inicializado. **Nenhuma lógica de negócio implementada** (pro
 lógica científica testável via `cargo test` e já perto do banco; o frontend chama
 via command. (Atualiza a preferência provisória registrada em ARQUITETURA.md.)
 
+**Validação (`cargo test`):** ✅ **6/6 testes passaram**, incluindo o obrigatório
+`figura6_exemplo_do_artigo` (Figure 6 → 0.852). Rodados num crate isolado
+(`scratchpad/dixon_check`) com os arquivos reais `dixon.rs`/`dixon_table.rs`,
+porque o build completo do app está bloqueado (ver abaixo).
+
 **Pendências desta etapa:**
-- ⚠️ `cargo test` **ainda não executado** nesta máquina (Rust não instalado). A
-  lógica e a tabela foram validadas por um port fiel em Python (todos os casos
-  passaram, incluindo Figure 6 = 0.852). Rodar `cargo test` após instalar Rust.
+- 🚫 **BLOQUEIO — Smart App Control (SAC).** `cargo build`/`cargo test` do app
+  completo falha com `os error 4551` ("política de Controle de Aplicativo bloqueou
+  este arquivo"): o **Smart App Control do Windows 11 (estado = LIGADO)** bloqueia a
+  execução/carregamento dos artefatos não-assinados que o Rust gera (build scripts
+  e DLLs de proc-macro das dependências do Tauri). O motor de Dixon (Rust puro, sem
+  build scripts/proc-macros) compila e testa normalmente; só o build com as deps do
+  Tauri é afetado. **Ação do usuário:** desligar o Smart App Control em *Segurança
+  do Windows → Controle de aplicativos e navegador → Smart App Control → Desativado*
+  (⚠️ no Windows 11 essa opção, uma vez desligada, só volta reinstalando o Windows),
+  ou compilar em outra máquina/VM sem SAC. Isso também será necessário para
+  `npm run tauri dev`/`build`.
 - ⚠️ `// VERIFICAR`: condição de aplicação do incremento "+0,001" das 5 células
   com sobrescrito "+1" — confirmar leitura do artigo com o pesquisador.
 - Cálculo automático de `d` a partir do cadastro de filamentos fica para a etapa 2

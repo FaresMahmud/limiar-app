@@ -145,8 +145,12 @@ Convenção de portas: Vite serve em **1420** (`strictPort`), HMR em 1421. O Tau
 contra o exemplo do artigo (Figure 6 → 0.852). Ainda **sem interface visual**.
 
 **Pendências abertas da etapa 1:**
-- `cargo test` não rodou aqui (Rust não instalado) — lógica validada por port
-  Python; rodar após instalar Rust.
+- `cargo test` do motor: ✅ 6/6 passaram (crate isolado). Mas o build **completo**
+  do app está bloqueado pelo **Smart App Control do Windows 11** (`os error 4551`):
+  ele bloqueia build scripts e proc-macros não-assinados das deps do Tauri. Para
+  `cargo build`/`tauri dev`/`build` funcionarem, desligar o SAC (Segurança do
+  Windows → Controle de aplicativos e navegador; ⚠️ irreversível no Win11) ou usar
+  outra máquina/VM. Ver ROADMAP etapa 1.
 - `// VERIFICAR` em `dixon_table.rs`: semântica do incremento "+0,001" das 5
   células "+1" — confirmar com o pesquisador.
 
