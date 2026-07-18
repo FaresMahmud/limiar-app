@@ -59,4 +59,4 @@ O instalador do seu sistema operacional é gerado em
 
 ## Stack
 
-Tauri 2 · Rust · Svelte 5 · TypeScript · Vite · SQLite (`tauri-plugin-sql`).
+Tauri 2 · Rust · Svelte 5 · TypeScript · Vite · SQLite (via `rusqlite` no backend).

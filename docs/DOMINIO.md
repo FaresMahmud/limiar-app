@@ -80,8 +80,27 @@ d = média( log10(f_{i+1}) - log10(f_i) )  para i = 1..n-1
 
 Se o espaçamento for perfeitamente uniforme em log (kit ideal), `d` é
 simplesmente essa diferença constante. Como kits reais têm pequenas variações,
-usamos a **média**. (Este é um ponto a confirmar com o laboratório ao implementar:
-alguns protocolos usam um `d` fixo do kit; documentar a decisão final aqui.)
+usamos a **média**.
+
+#### Exemplo Numérico Simples
+
+Seja um kit hipotético com 4 filamentos de von Frey com forças: **1.0g, 2.0g, 4.0g e 8.0g**.
+
+1. **Calcular o \(\log_{10}\) de cada força**:
+   - \(\log_{10}(1.0) = 0.0000\)
+   - \(\log_{10}(2.0) \approx 0.3010\)
+   - \(\log_{10}(4.0) \approx 0.6021\)
+   - \(\log_{10}(8.0) \approx 0.9031\)
+
+2. **Calcular a diferença entre logs consecutivos**:
+   - \(\Delta_1 = \log_{10}(2.0) - \log_{10}(1.0) = 0.3010 - 0.0000 = 0.3010\)
+   - \(\Delta_2 = \log_{10}(4.0) - \log_{10}(2.0) = 0.6021 - 0.3010 = 0.3011\)
+   - \(\Delta_3 = \log_{10}(8.0) - \log_{10}(4.0) = 0.9031 - 0.6021 = 0.3010\)
+
+3. **Calcular a média das diferenças**:
+   - \(d = \frac{0.3010 + 0.3011 + 0.3010}{3} = \frac{0.9031}{3} \approx 0.3010\)
+
+*Nota: Por propriedades matemáticas da soma telescópica, o valor final é equivalente a \(\frac{\log_{10}(f_n) - \log_{10}(f_1)}{n-1}\), que neste caso é \(\frac{\log_{10}(8.0) - \log_{10}(1.0)}{3} = \frac{0.9031 - 0}{3} \approx 0.3010\).*
 
 ---
 
@@ -196,3 +215,43 @@ experimento.
 | **`d`** | Passo médio entre filamentos em log10 (depende do kit do laboratório). |
 | **timepoint** | Momento da curva temporal em que se refaz o teste (basal, 1h, ...). |
 | **sequência O/X** | Série de respostas de um animal num timepoint; entrada da tabela. |
+
+---
+
+## 7. Agregação Estatística (Tratamento dos Grupos)
+
+Limiares de von Frey medidos pelo método de Dixon seguem uma distribuição log-normal (o espaçamento do kit e o motor de Dixon operam intrinsicamente em escala logarítmica). Portanto, médias aritméticas simples calculadas diretamente em escala linear (gramas) são estatisticamente distorcidas e incorretas.
+
+### Regras de Cálculo Estatístico
+
+Para um grupo de animais em um timepoint específico com limiares individuais $x_i$ (em gramas):
+
+1. **Transformação Logarítmica**:
+   $$log_i = \log_{10}(x_i)$$
+   
+2. **Média Logarítmica**:
+   $$\text{media\_log} = \frac{1}{n} \sum_{i=1}^{n} log_i$$
+   
+3. **Média do Grupo (Média Geométrica)**:
+   $$\text{media\_geometrica\_g} = 10^{\text{media\_log}}$$
+   Este é o valor real da força em gramas que representa a média central do grupo nociceptivo.
+
+4. **Desvio Padrão Logarítmico (Amostral)**:
+   $$S_{\log} = \sqrt{\frac{1}{n-1} \sum_{i=1}^{n} (log_i - \text{media\_log})^2}$$
+
+5. **Erro Padrão do Logaritmo (EP)**:
+   $$EP_{\log} = \frac{S_{\log}}{\sqrt{n}}$$
+
+6. **Intervalos do Erro Padrão Assimétricos**:
+   Reconvertendo os intervalos do erro padrão de volta para gramas:
+   $$\text{limite\_superior\_g} = 10^{\text{media\_log} + EP_{\log}}$$
+   $$\text{limite\_inferior\_g} = 10^{\text{media\_log} - EP_{\log}}$$
+
+### Assimetria Nociceptiva
+Como as margens superior e inferior do erro padrão são calculadas somando/subtraindo o erro padrão em escala logarítmica e depois elevando a potência de 10:
+$$\Delta_{sup} = \text{limite\_superior\_g} - \text{media\_geometrica\_g}$$
+$$\Delta_{inf} = \text{media\_geometrica\_g} - \text{limite\_inferior\_g}$$
+Teremos $\Delta_{sup} \neq \Delta_{inf}$. As barras de erro na escala linear em gramas ficam **assimétricas** (a haste superior é maior que a inferior). Esse comportamento é **matematicamente esperado e correto**, representando fielmente a dispersão log-normal nociceptiva em escala linear.
+
+### Omissão do Erro Padrão para N=1
+Se um grupo/timepoint possuir apenas 1 animal ($n=1$), o desvio padrão amostral $S_{\log}$ torna-se indefinido (divisão por zero). Nesse cenário, o sistema calcula a Média Geométrica (que coincide com o próprio limiar do animal único) e define o erro padrão e os limites superior/inferior como `None` (omitindo as barras de erro no gráfico), permitindo a renderização do experimento sem interrupções.

@@ -21,7 +21,7 @@ specs desconhecidas. Portanto:
 ## 2. Offline total
 
 - Funciona **100% offline**, sem servidor externo e **sem necessidade de internet**.
-- Persistência **local** em **SQLite** (`tauri-plugin-sql`), um arquivo por máquina.
+- Persistência **local** em **SQLite** (via `rusqlite` no backend Rust), um arquivo por máquina.
 - Nenhuma funcionalidade essencial pode depender de rede/nuvem.
 
 ## 3. Cross-platform real (Windows **e** macOS)

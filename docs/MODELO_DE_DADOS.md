@@ -46,7 +46,10 @@ cada laboratório pode ter um kit diferente, o que muda o cálculo de `d`.
 | id           | INTEGER | PK |
 | nome         | TEXT    | ex.: "Kit padrão camundongo" |
 | descricao    | TEXT    | opcional |
-| criado_em    | TEXT    | ISO 8601 |
+| d            | REAL    | valor d calculado a partir dos filamentos |
+| ativo        | INTEGER | 1 = ativo, 0 = excluído (soft-delete) |
+| criado_em    | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
+| atualizado_em| TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
 
 ### 2.2 Filamento
 Um filamento individual do kit, com sua força calibrada.
@@ -56,11 +59,9 @@ Um filamento individual do kit, com sua força calibrada.
 | id            | INTEGER | PK |
 | conjunto_id   | INTEGER | FK → ConjuntoDeFilamentos |
 | forca_g       | REAL    | força de dobra em **gramas** |
-| rotulo        | TEXT    | opcional (ex.: número/etiqueta do filamento) |
-| ordem         | INTEGER | posição na escala crescente |
+| ordem         | INTEGER | posição na escala crescente (0-indexada) |
 
-> `d` do conjunto é **derivado** destes filamentos (média das diferenças de
-> `log10(forca_g)`), **não armazenado como constante fixa**. Ver [DOMINIO.md](DOMINIO.md) §3.
+> `d` do conjunto é calculado no Rust a partir dos filamentos (média das diferenças de `log10(forca_g)`) e armazenado na tabela `conjuntos_filamentos` para garantir performance de consulta e rastreabilidade científica. Ver [DOMINIO.md](DOMINIO.md) §3.
 
 ### 2.3 Experimento
 Um estudo/ensaio completo.
@@ -70,9 +71,11 @@ Um estudo/ensaio completo.
 | id                  | INTEGER | PK |
 | nome                | TEXT    | |
 | descricao           | TEXT    | opcional |
-| conjunto_id         | INTEGER | FK → ConjuntoDeFilamentos (kit usado) |
-| responsavel         | TEXT    | pesquisador |
-| criado_em           | TEXT    | ISO 8601 |
+| conjunto_id         | INTEGER | FK → conjuntos_filamentos (kit usado) |
+| responsavel         | TEXT    | pesquisador (opcional) |
+| ativo               | INTEGER | 1 = ativo, 0 = excluído (soft-delete) |
+| criado_em           | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
+| atualizado_em       | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
 
 ### 2.4 Grupo
 Grupo de tratamento dentro de um experimento (ex.: controle, tratado). Tem uma
@@ -84,6 +87,9 @@ Grupo de tratamento dentro de um experimento (ex.: controle, tratado). Tem uma
 | experimento_id| INTEGER | FK → Experimento |
 | nome          | TEXT    | ex.: "Controle", "Morfina 5mg/kg" |
 | cor           | TEXT    | cor do grupo (hex ou nome) — identidade visual |
+| ativo         | INTEGER | 1 = ativo, 0 = excluído (soft-delete) |
+| criado_em     | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
+| atualizado_em | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
 
 ### 2.5 Animal
 Um roedor. Identificado por marcação física (texto livre) + cor do grupo.
@@ -92,14 +98,12 @@ Um roedor. Identificado por marcação física (texto livre) + cor do grupo.
 |---------------|---------|-------|
 | id            | INTEGER | PK |
 | experimento_id| INTEGER | FK → Experimento |
-| grupo_id      | INTEGER | FK → Grupo (pode ser definido após randomização) |
-| marcacao      | TEXT    | ex.: "4P", "2L" — riscos na cauda (só rótulo, sem lógica) |
-| especie       | TEXT    | opcional (rato/camundongo) |
-| observacoes   | TEXT    | opcional |
-
-> A **randomização/balanceamento** por limiar basal atribui `grupo_id` de forma
-> a minimizar o desvio entre grupos (ver [DOMINIO.md](DOMINIO.md) §5.2). É um
-> processo, não um campo.
+| grupo_id      | INTEGER | FK → Grupo |
+| marcacao      | TEXT    | ex.: "4P", "2L" — riscos na cauda (rótulo visual) |
+| peso          | REAL    | peso do animal em gramas (opcional) |
+| ativo         | INTEGER | 1 = ativo, 0 = excluído (soft-delete) |
+| criado_em     | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
+| atualizado_em | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
 
 ### 2.6 Timepoint
 Momento da curva temporal do experimento (basal, indução, 1h, 2h...).
@@ -109,8 +113,10 @@ Momento da curva temporal do experimento (basal, indução, 1h, 2h...).
 | id            | INTEGER | PK |
 | experimento_id| INTEGER | FK → Experimento |
 | rotulo        | TEXT    | ex.: "basal 1", "tratamento", "2h", "24h" |
-| ordem         | INTEGER | posição na curva temporal |
-| opcional      | INTEGER | 0/1 — pontos como 8h/24h podem não ser executados |
+| ordem         | INTEGER | posição na curva temporal (0-indexada) |
+| opcional      | INTEGER | 0 = obrigatório, 1 = opcional |
+| criado_em     | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
+| atualizado_em | TEXT    | ISO 8601 (CURRENT_TIMESTAMP) |
 
 ### 2.7 SequenciaDeTeste
 Uma série up-and-down de um **animal** num **timepoint**: a sequência O/X e os
@@ -153,4 +159,22 @@ comparação — e recalculável a partir da sequência + filamentos.
   pela simplicidade; revisar se precisar consultar aplicação a aplicação).
 - Índices únicos: provavelmente `(animal_id, timepoint_id)` deve ser único em
   SequenciaDeTeste.
-- Estratégia de soft-delete vs. hard-delete para dados de laboratório.
+
+---
+
+## 4. Decisões tomadas na Etapa 2
+
+- **Estratégia de Exclusão (Soft-Delete)**: Para `ConjuntoDeFilamentos`, foi adotado soft-delete via coluna `ativo` (1 = ativo, 0 = inativo). Isso previne a exclusão física e garante que experimentos e limiares já computados no passado mantenham sua rastreabilidade e integridade referencial ao seu conjunto de origem.
+- **Relacionamento da Tabela de Filamentos**: A tabela `filamentos` armazena os valores em gramas com ordem (escala crescente 0-indexada) associados via FK `conjunto_id` à tabela principal. A edição de um conjunto limpa e reinserte os filamentos em uma transação ACID local.
+- **Armazenamento de `d`**: O valor `d` é calculado no Rust durante a gravação/atualização do conjunto e persistido na coluna `d` de `conjuntos_filamentos`. Isso agiliza as leituras e previne descalibrações retroativas nos históricos de limiares se as definições da escala mudarem futuramente.
+
+---
+
+## 5. Decisões tomadas na Etapa 3
+
+- **Modelo Temporal (Timepoints)**: Os timepoints são armazenados em uma tabela independente vinculada por FK a cada experimento. Isso suporta a criação de curvas temporais totalmente dinâmicas para cada estudo, respeitando a ordem cronológica desejada pelos pesquisadores.
+- **Estratégia de Exclusão (Soft-Delete) em Cascata**:
+  - Para Experimentos, Grupos e Animais foi adotada a exclusão lógica via coluna `ativo` (1 = ativo, 0 = inativo) para prevenir a exclusão acidental de dados nociceptivos históricos por engano do usuário.
+  - Para a consistência do banco, na deleção física ou limpeza (expurgação), foi configurada a restrição `ON DELETE CASCADE` no SQLite. Se um experimento for removido fisicamente do banco de dados, todas as suas tabelas filhas (grupos, animais e timepoints) são excluídas em cascata para não deixar órfãos óbvios.
+  - Se um grupo de tratamento for marcado como inativo (`ativo = 0`), todos os seus animais correspondentes também recebem a alteração de `ativo = 0` recursivamente no comando de exclusão do grupo.
+
