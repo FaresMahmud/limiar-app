@@ -1,0 +1,35 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Rust / Tauri (o src-tauri/.gitignore também cobre /target e /gen/schemas)
+src-tauri/target/
+src-tauri/gen/
+
+# Bancos SQLite locais gerados em runtime (não versionar dados de laboratório)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
