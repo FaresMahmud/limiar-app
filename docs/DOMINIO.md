@@ -279,14 +279,15 @@ conteúdo pronto para **colar** (clipboard), no formato que o Prism espera.
 - **Delimitador:** TAB (TSV); linhas separadas por `\n`. É o formato que o Prism
   aceita colar de qualquer fonte.
 
-### Ponto vs. vírgula decimal
+### Separador decimal: vírgula
 
-Os números usam **ponto decimal** (`0.2350`), padrão americano — o mais comum e o
-default do Prism na maioria das instalações. ⚠️ Se o Prism estiver configurado com
-**locale** que espera **vírgula** decimal, a colagem pode não ser reconhecida como
-número; nesse caso, ajuste o locale do Prism (ou do Windows) para ponto, ou
-poderíamos futuramente oferecer uma opção de separador. A geração é
-locale-independente (usa `toFixed`, que sempre emite ponto), evitando surpresas.
+Os números usam **vírgula decimal** (`0,2350`) — **padrão brasileiro, confirmado
+como o do Windows/Prism deste laboratório**. Não há ambiguidade com a separação de
+colunas porque o delimitador de colunas é **TAB** (não vírgula). A geração é
+locale-independente: usa `toFixed` (que sempre emite ponto) e troca o ponto por
+vírgula explicitamente, evitando depender da configuração da máquina. É um padrão
+**fixo** por ora (não configurável); se algum dia surgir um laboratório que use
+ponto, dá para tornar opcional.
 
 ### Onde está no código
 

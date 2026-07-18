@@ -44,16 +44,16 @@ describe("montarTabelaPrism", () => {
 
   it("preenche as células e deixa VAZIA a combinação sem limiar", () => {
     const t = montarTabelaPrism(experimento, limiares);
-    // Basal: todos os 3 animais têm valor
-    expect(t.linhas[0].valores).toEqual(["4.2000", "3.8000", "4.1000"]);
+    // Basal: todos os 3 animais têm valor (vírgula decimal)
+    expect(t.linhas[0].valores).toEqual(["4,2000", "3,8000", "4,1000"]);
     // 1h: Tratado/B1 ausente → última célula vazia
-    expect(t.linhas[1].valores).toEqual(["3.9000", "3.9500", ""]);
+    expect(t.linhas[1].valores).toEqual(["3,9000", "3,9500", ""]);
   });
 
-  it("usa ponto decimal e respeita o número de casas (opção `decimais`)", () => {
+  it("usa vírgula decimal e respeita o número de casas (opção `decimais`)", () => {
     const t = montarTabelaPrism(experimento, limiares, { decimais: 2 });
-    expect(t.linhas[0].valores[0]).toBe("4.20");
-    expect(t.linhas[0].valores[0]).not.toContain(",");
+    expect(t.linhas[0].valores[0]).toBe("4,20");
+    expect(t.linhas[0].valores[0]).not.toContain(".");
   });
 });
 
@@ -62,8 +62,8 @@ describe("tabelaPrismParaTsv / gerarTsvPrism", () => {
     const tsv = gerarTsvPrism(experimento, limiares);
     const esperado = [
       "Timepoint\tControle_A1\tControle_A2\tTratado_B1",
-      "Basal\t4.2000\t3.8000\t4.1000",
-      "1h\t3.9000\t3.9500\t", // célula final vazia (Tratado/B1/1h ausente)
+      "Basal\t4,2000\t3,8000\t4,1000",
+      "1h\t3,9000\t3,9500\t", // célula final vazia (Tratado/B1/1h ausente)
     ].join("\n");
     expect(tsv).toBe(esperado);
   });
