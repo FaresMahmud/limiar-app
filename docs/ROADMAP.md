@@ -16,19 +16,33 @@ repositório git inicializado. **Nenhuma lógica de negócio implementada** (pro
 
 ---
 
-## Etapa 1 — Tabela de Dixon completa + motor de cálculo ⬜ (próxima)
+## Etapa 1 — Tabela de Dixon completa + motor de cálculo ✅ (concluída)
 
-- Transcrever **exatamente** a **Tabela 7 de Dixon (1980)**, **N = 2 a 6, todas as
-  combinações O/X**, a partir do **PDF do artigo** (usuário fornecerá).
-  **Não inventar valores.**
-- Implementar o **motor de cálculo do limiar** (TS puro em `src/lib/`, isolável):
-  - função `d` = média das diferenças de `log10(forca)` dos filamentos do kit;
-  - fórmula `LIMIAR = 10 ^ (log10(último_filamento) + k × d)`;
-  - lookup de `k` pela sequência O/X.
-- **Testes automatizados** fixando cada valor de `k` conhecido e casos de limiar.
-- Corrigir o bug do software antigo: **suportar sequências de 4+ respostas iguais**.
+- ✅ **Tabela 7** transcrita **exatamente** do PDF (N=2 a 6, todas as combinações
+  O/X, + erro padrão por N) em [`src-tauri/src/dixon_table.rs`](../src-tauri/src/dixon_table.rs).
+- ✅ **Motor de cálculo** em Rust ([`src-tauri/src/dixon.rs`](../src-tauri/src/dixon.rs)),
+  puro e testável, com a fórmula `LIMIAR = 10^(log10(xf) + k·d)`, decodificação
+  bidirecional (primeira/segunda parte, entrada "pelo pé" com inversão de sinal).
+- ✅ Exposto como Tauri command `calcular_limiar` em [`lib.rs`](../src-tauri/src/lib.rs).
+- ✅ **Testes** (`#[test]`) fixando o exemplo resolvido do artigo (Figure 6 → 0.852)
+  + inversão de sinal, valores da tabela, corrida longa (4+ iguais) e erros.
+- ✅ Bug do software antigo resolvido: **sequências de 4+ respostas iguais** agora
+  são tratadas (coluna OOOO + incremento), sem travar.
 
-> Depende de: PDF do artigo (pendência). Referências: [DOMINIO.md](DOMINIO.md) §3–4.
+**Decisão de arquitetura:** o motor ficou em **Rust** (não TS) — melhor lugar para
+lógica científica testável via `cargo test` e já perto do banco; o frontend chama
+via command. (Atualiza a preferência provisória registrada em ARQUITETURA.md.)
+
+**Pendências desta etapa:**
+- ⚠️ `cargo test` **ainda não executado** nesta máquina (Rust não instalado). A
+  lógica e a tabela foram validadas por um port fiel em Python (todos os casos
+  passaram, incluindo Figure 6 = 0.852). Rodar `cargo test` após instalar Rust.
+- ⚠️ `// VERIFICAR`: condição de aplicação do incremento "+0,001" das 5 células
+  com sobrescrito "+1" — confirmar leitura do artigo com o pesquisador.
+- Cálculo automático de `d` a partir do cadastro de filamentos fica para a etapa 2
+  (aqui `d` é recebido como parâmetro).
+
+> Referências: [DOMINIO.md](DOMINIO.md) §3–4.
 
 ## Etapa 2 — Cadastro de filamentos / laboratório ⬜
 
@@ -73,7 +87,8 @@ repositório git inicializado. **Nenhuma lógica de negócio implementada** (pro
 
 ## Pendências transversais (não são etapas, mas bloqueiam/afetam várias)
 
-- ⬜ **PDF do artigo de Dixon** com a Tabela 7 (bloqueia etapa 1).
-- ⬜ **Instalar Rust/Cargo** na máquina de desenvolvimento (bloqueia `dev`/`build`).
+- ✅ **PDF do artigo de Dixon** com a Tabela 7 — em `docs/referencia/dixon1980.pdf`.
+- ⬜ **Instalar Rust/Cargo** na máquina de desenvolvimento (bloqueia `dev`/`build`
+  e `cargo test`).
 - ⬜ **Acesso a um Mac** para validar o build macOS (etapa 8).
 - ⬜ Confirmar com o laboratório se `d` é média calculada ou passo fixo do kit.

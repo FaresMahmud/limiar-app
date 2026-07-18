@@ -136,8 +136,19 @@ Convenção de portas: Vite serve em **1420** (`strictPort`), HMR em 1421. O Tau
 
 ## 8. Estado atual do projeto
 
-**Etapa 0 concluída:** estrutura + documentação (este commit). Nenhuma tela,
-cálculo ou lógica de negócio implementados ainda — proposital.
+**Etapa 0 concluída:** estrutura + documentação.
 
-**Próxima etapa:** #1 do roadmap — transcrever a Tabela 7 de Dixon (completa) e
-construir o motor de cálculo do limiar. Aguardando o PDF do artigo.
+**Etapa 1 concluída:** Tabela 7 de Dixon transcrita
+([`src-tauri/src/dixon_table.rs`](src-tauri/src/dixon_table.rs)) + motor de cálculo
+([`src-tauri/src/dixon.rs`](src-tauri/src/dixon.rs)) + Tauri command
+`calcular_limiar` ([`lib.rs`](src-tauri/src/lib.rs)) + testes `#[test]`. Validado
+contra o exemplo do artigo (Figure 6 → 0.852). Ainda **sem interface visual**.
+
+**Pendências abertas da etapa 1:**
+- `cargo test` não rodou aqui (Rust não instalado) — lógica validada por port
+  Python; rodar após instalar Rust.
+- `// VERIFICAR` em `dixon_table.rs`: semântica do incremento "+0,001" das 5
+  células "+1" — confirmar com o pesquisador.
+
+**Próxima etapa:** #2 do roadmap — cadastro de filamentos/laboratório (SQLite) e
+cálculo automático de `d`.

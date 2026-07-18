@@ -27,6 +27,9 @@ dist-ssr
 src-tauri/target/
 src-tauri/gen/
 
+# Artigos/PDFs de referência (copyright — manter local, fora do versionamento)
+docs/referencia/*.pdf
+
 # Bancos SQLite locais gerados em runtime (não versionar dados de laboratório)
 *.db
 *.db-journal

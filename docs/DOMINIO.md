@@ -85,36 +85,64 @@ alguns protocolos usam um `d` fixo do kit; documentar a decisão final aqui.)
 
 ---
 
-## 4. A Tabela 7 de Dixon (CRÍTICA — ainda não implementada)
+## 4. A Tabela 7 de Dixon (implementada — etapa 1 ✅)
 
-O `k_dixon` vem de uma **tabela de consulta**: para cada **padrão de respostas
-O/X** de uma sequência, há um valor `k` correspondente (derivado por máxima
-verossimilhança no artigo de Dixon).
+O `k_dixon` vem de uma **tabela de consulta**: para cada **configuração de
+respostas O/X** de uma série, há um valor `k` correspondente (máxima
+verossimilhança, Dixon 1980).
 
 ### Por que isso é o coração do projeto
 
-O software antigo do laboratório **trava** exatamente porque a tabela embutida
-nele está **incompleta** — só cobre sequências de até ~4 respostas. Sequências
-com **4+ respostas iguais** caem fora da tabela e o programa quebra.
+O software antigo do laboratório **travava** exatamente porque a tabela embutida
+nele estava **incompleta** — só cobria sequências de até ~4 respostas. Sequências
+com 4+ respostas iguais caíam fora da tabela e o programa quebrava.
 
-### Requisito
+### Onde está a tabela no código
 
-Implementar a **Tabela 7 completa**: **N de 2 a 6**, **todas as combinações
-possíveis de O/X**. Os valores devem ser **transcritos exatamente do artigo
-original** (o usuário fornecerá o PDF). 
+- **Transcrição completa:** [`src-tauri/src/dixon_table.rs`](../src-tauri/src/dixon_table.rs)
+  — N de 2 a 6, **todas as combinações O/X**, transcrita **exatamente** da
+  **Table 7, p. 454** de Dixon (1980) (PDF em
+  [`docs/referencia/dixon1980.pdf`](referencia/dixon1980.pdf)). Inclui o erro
+  padrão do LD50 por bloco N (0.88σ para N=2 … 0.56σ para N=6).
+- **Motor de cálculo:** [`src-tauri/src/dixon.rs`](../src-tauri/src/dixon.rs)
+  (`estimar_limiar`), exposto ao frontend como o Tauri command `calcular_limiar`
+  (em [`lib.rs`](../src-tauri/src/lib.rs)).
 
-> 🚫 **NÃO inventar, interpolar ou "chutar" valores de `k`.** Erros aqui produzem
-> limiares cientificamente inválidos silenciosamente. Toda a tabela deve vir do
-> artigo, idealmente com um teste automatizado que fixe cada valor conhecido.
+> 🚫 **Nunca inventar, interpolar ou arredondar valores de `k`.** Todos vêm do
+> artigo e há testes automatizados fixando o exemplo resolvido do artigo (Figure 6).
 
-### Placeholder (estado atual)
+### Como a tabela é lida (procedimento de decodificação)
 
-```
-// TODO(etapa 1): transcrever Tabela 7 de Dixon (1980), N=2..6, todas as
-// combinações O/X, a partir do PDF fornecido pelo usuário.
-// Estrutura sugerida: mapa { "OXOXO": k, ... } indexado pela string da sequência.
-// Ainda NÃO implementado — ver docs/ROADMAP.md etapa 1.
-```
+A tabela é **bidirecional** — é o ponto que mais confunde. Uma série é dividida em:
+
+- **primeira parte** (*first part*): a corrida inicial de respostas **iguais**;
+- **segunda parte** (*second part*): o restante da série.
+
+Passos (steps 3–5 do artigo):
+
+1. `N'` = número total de testes na série.
+2. Seja `m` = tamanho da primeira parte (respostas iguais no início). O **N
+   nominal** = `N' − (m − 1)` = **(tamanho da segunda parte) + 1**.
+3. **Linha** da tabela = rótulo da segunda parte. **Coluna** = `min(m, 4)`
+   (colunas O, OO, OOO, OOOO). Se `m > 4`, usa-se a última coluna (OOOO).
+4. Estimativa (em log): `xf_log + k·d`, onde `xf` é o **último nível testado**.
+   Limiar real: `10^(log10(xf) + k·d)`.
+5. **Entrada "pelo pé":** se a série **começa com X** (em vez de O), entra-se pela
+   base da tabela — equivalente a **trocar O↔X** na série inteira, consultar
+   normalmente e **inverter o sinal de `k`**.
+
+**As 5 células com sobrescrito `+1`** (N=5 `XXXX`; N=6 `XXOXX`, `XXXOX`, `XXXXO`,
+`XXXXX`): o artigo (step 4) indica um **incremento de +0,001 no terceiro decimal**.
+Interpretação adotada: aplicado apenas quando `m > 4`. Ver `// VERIFICAR` em
+`dixon_table.rs` — ponto a confirmar com o pesquisador (impacto ≈ 0,23% no limiar).
+
+### Validação (exemplo do próprio artigo — Figure 6)
+
+Série `OXXOXO`, doses reais 8, 16, 8, 4, 8, 4 (%) → `xf = 4`, `d = 0.301`.
+Decodificação: primeira parte `O` (m=1), segunda parte `XXOXO`, N=6, coluna O →
+`k = 0.831`. Estimativa (log) = `log10(4) + 0.831·0.301 = 0.852`. ✅ Bate com o
+artigo ("0.602 + 0.831(0.301) = 0.852"). Teste automatizado em `dixon.rs`
+(`figura6_exemplo_do_artigo`).
 
 ---
 
