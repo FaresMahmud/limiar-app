@@ -255,3 +255,45 @@ Teremos $\Delta_{sup} \neq \Delta_{inf}$. As barras de erro na escala linear em 
 
 ### Omissão do Erro Padrão para N=1
 Se um grupo/timepoint possuir apenas 1 animal ($n=1$), o desvio padrão amostral $S_{\log}$ torna-se indefinido (divisão por zero). Nesse cenário, o sistema calcula a Média Geométrica (que coincide com o próprio limiar do animal único) e define o erro padrão e os limites superior/inferior como `None` (omitindo as barras de erro no gráfico), permitindo a renderização do experimento sem interrupções.
+
+---
+
+## 8. Exportação para o GraphPad Prism (tabela "Grouped")
+
+O **GraphPad Prism** é o software padrão de gráficos em farmacologia/biologia. Para
+curvas temporais por grupo, usa-se uma tabela do tipo **"Grouped"**. O app gera o
+conteúdo pronto para **colar** (clipboard), no formato que o Prism espera.
+
+### Estrutura gerada
+
+- **Linhas = timepoints**, em **ordem cronológica** (a ordem definida no experimento,
+  não alfabética) — por isso a ordem vem da estrutura do experimento, não da lista
+  de limiares.
+- **Colunas = animais individuais** (as **réplicas**), agrupados por grupo de
+  tratamento (colunas de um mesmo grupo ficam contíguas). **Não** exportamos a média:
+  o Prism calcula média/erro padrão internamente a partir das réplicas.
+- **Cabeçalho** de cada coluna: `<Nome do grupo>_<marcação do animal>` (ex.:
+  `Controle_4P`), usando a marcação real cadastrada do animal.
+- **Célula vazia** quando aquele animal não tem limiar naquele timepoint (ainda não
+  testado) — tratado graciosamente, sem quebrar.
+- **Delimitador:** TAB (TSV); linhas separadas por `\n`. É o formato que o Prism
+  aceita colar de qualquer fonte.
+
+### Ponto vs. vírgula decimal
+
+Os números usam **ponto decimal** (`0.2350`), padrão americano — o mais comum e o
+default do Prism na maioria das instalações. ⚠️ Se o Prism estiver configurado com
+**locale** que espera **vírgula** decimal, a colagem pode não ser reconhecida como
+número; nesse caso, ajuste o locale do Prism (ou do Windows) para ponto, ou
+poderíamos futuramente oferecer uma opção de separador. A geração é
+locale-independente (usa `toFixed`, que sempre emite ponto), evitando surpresas.
+
+### Onde está no código
+
+- Lógica pura (testável): [`src/lib/prism.ts`](../src/lib/prism.ts)
+  (`montarTabelaPrism`, `tabelaPrismParaTsv`), com testes em
+  [`src/lib/prism.test.ts`](../src/lib/prism.test.ts) (`npm test`).
+- UI: botão **"Copiar para o Prism"** na seção *Gráfico & Exportação*
+  ([`src/App.svelte`](../src/App.svelte)), com cópia ao clipboard, confirmação
+  "Copiado!" e pré-visualização da tabela. Reaproveita o comando
+  `obter_limiares_experimento` (nenhum comando Rust novo foi necessário).

@@ -95,6 +95,13 @@ porque o build completo do app está bloqueado (ver abaixo).
 - ✅ Exportação XLSX formatada em abas múltiplas (Dados Brutos, Limiares, Resumo de Estatísticas por Grupo) via SheetJS.
 - ✅ Geração de relatório estruturado em PDF com metadados, gráfico embutido e tabela de estatísticas agregadas por jsPDF.
 - ✅ Integração com os plugins `@tauri-apps/plugin-dialog` e `@tauri-apps/plugin-fs` para prover diálogos de salvamento nativos no desktop e download via blob em navegadores mockados.
+- ✅ **Exportação para o GraphPad Prism** (tabela "Grouped" via clipboard): botão
+  "Copiar para o Prism" gera o TSV (linhas = timepoints em ordem cronológica;
+  colunas = animais/réplicas por grupo; cabeçalho `Grupo_Marcação`; ponto decimal;
+  células vazias para testes ausentes) e copia para o clipboard, com confirmação
+  "Copiado!" e pré-visualização. Lógica pura testável em `src/lib/prism.ts`
+  (+ `prism.test.ts`, `npm test`); reaproveita `obter_limiares_experimento` (sem
+  novo comando Rust). Testado end-to-end no `npm run dev` (mock). Ver DOMINIO.md §8.
 
 ## Etapa 6 — Testes em máquina fraca / Performance ⬜
 

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { invokeCommand } from './lib/tauri';
   import GraficoCurva from './lib/GraficoCurva.svelte';
+  import { montarTabelaPrism, tabelaPrismParaTsv, type TabelaPrism } from './lib/prism';
   import { save } from '@tauri-apps/plugin-dialog';
   import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs';
   import * as XLSX from 'xlsx';
@@ -806,6 +807,63 @@
     link.download = nomeSugerido;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  // =============================================================================
+  // EXPORTAÇÃO PARA GRAPHPAD PRISM (tabela "Grouped" via clipboard TSV)
+  // =============================================================================
+  let prismPreview = $state<TabelaPrism | null>(null);
+  let prismCopiado = $state(false);
+  let prismTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /** Copia texto para o clipboard: usa a API do navegador/webview, com fallback. */
+  async function copiarTexto(texto: string): Promise<boolean> {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(texto);
+        return true;
+      }
+    } catch {
+      // cai no fallback abaixo
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Monta o TSV dos limiares no formato do Prism e copia para o clipboard. */
+  async function copiarParaPrism() {
+    if (selectedExpId === null || !selectedExp) return;
+    carregando = true;
+    try {
+      const limiaresData = await invokeCommand<any[]>('obter_limiares_experimento', { experimentoId: selectedExpId });
+      const tabela = montarTabelaPrism(selectedExp, limiaresData);
+      prismPreview = tabela;
+      const tsv = tabelaPrismParaTsv(tabela);
+      const ok = await copiarTexto(tsv);
+      if (ok) {
+        prismCopiado = true;
+        if (prismTimeout) clearTimeout(prismTimeout);
+        prismTimeout = setTimeout(() => { prismCopiado = false; }, 2000);
+      } else {
+        erroMsg = 'Não foi possível copiar automaticamente. Use a pré-visualização abaixo: selecione o texto e copie com Ctrl+C.';
+      }
+    } catch (e: any) {
+      erroMsg = 'Erro ao preparar dados para o Prism: ' + (e.message || e);
+    } finally {
+      carregando = false;
+    }
   }
 
   async function exportarCSV() {
@@ -1746,7 +1804,43 @@
                  <button class="btn-primary" onclick={exportarPDF} disabled={carregando} style="background-color: #c2410c; border-color: #c2410c;">
                    🔴 Exportar Relatório PDF
                  </button>
+                 <button class="btn-primary" onclick={copiarParaPrism} disabled={carregando} style="background-color: {prismCopiado ? '#15803d' : '#6d28d9'}; border-color: {prismCopiado ? '#15803d' : '#6d28d9'};">
+                   {prismCopiado ? '✓ Copiado!' : '📋 Copiar para o Prism'}
+                 </button>
                </div>
+
+               <!-- Pré-visualização da tabela do Prism (formato "Grouped") -->
+               {#if prismPreview}
+                 <div class="prism-preview" style="margin-top: 8px; margin-bottom: 24px;">
+                   <p style="font-size: 13px; color: #555; margin-bottom: 8px;">
+                     Formato Prism <strong>"Grouped"</strong>: colunas = animais (réplicas), linhas = timepoints.
+                     Já copiado como texto (TAB). Cole direto numa tabela Grouped do Prism. Números com ponto decimal;
+                     células vazias = animal sem teste naquele timepoint.
+                   </p>
+                   <div style="overflow-x: auto;">
+                     <table class="animals-table" style="font-size: 12px; white-space: nowrap;">
+                       <thead>
+                         <tr>
+                           <th>Timepoint</th>
+                           {#each prismPreview.colunasAnimais as col}
+                             <th>{col}</th>
+                           {/each}
+                         </tr>
+                       </thead>
+                       <tbody>
+                         {#each prismPreview.linhas as linha}
+                           <tr>
+                             <td><strong>{linha.timepoint}</strong></td>
+                             {#each linha.valores as v}
+                               <td style="text-align: right;">{v === '' ? '—' : v}</td>
+                             {/each}
+                           </tr>
+                         {/each}
+                       </tbody>
+                     </table>
+                   </div>
+                 </div>
+               {/if}
 
                <!-- Tabela Estatística Resumida -->
                <div style="margin-top: 24px;">
