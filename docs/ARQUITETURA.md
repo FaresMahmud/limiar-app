@@ -279,3 +279,78 @@ Figure 6), `finalizar_sequencia_ja_finalizada_retorna_erro`,
 `finalizar_sequencia_vazia_retorna_erro`,
 `finalizar_sequencia_com_n_acima_de_6_retorna_erro_claro` e
 `pode_finalizar_respeita_faixa_da_tabela`.
+
+### 10.1 O padrão obrigatório para erros (aplicado em todo o app)
+
+Ao escrever **qualquer** função que chame o backend (`invoke`) ou faça uma validação
+que possa falhar, siga os três pontos:
+
+1. **Trate o erro explicitamente** — nunca deixe uma Promise rejeitada sem `catch`.
+2. **Exiba a mensagem perto da ação** — não só no banner global do topo, que pode
+   estar fora da viewport.
+3. **Nunca use `return` mudo após uma validação falhar** — diga ao usuário o que falta.
+
+#### Componente reutilizável
+
+Use [`src/lib/AlertaErro.svelte`](../src/lib/AlertaErro.svelte) (estilos
+auto-contidos, some sozinho quando a mensagem é `null`, botão de fechar embutido):
+
+```svelte
+<script lang="ts">
+  import AlertaErro from './lib/AlertaErro.svelte';
+
+  let erroWizard = $state<string | null>(null);   // 1 estado por CONTEXTO de tela
+
+  async function salvarExperimentoCompleto() {
+    // (3) validação que falha => mensagem, nunca `return` mudo
+    if (!expNome.trim()) {
+      erroWizard = "O nome do experimento é obrigatório.";
+      return;
+    }
+    try {
+      carregando = true;
+      erroWizard = null;
+      await invokeCommand('criar_experimento_completo', { /* ... */ });
+      showExpForm = false;                    // só fecha/limpa em caso de SUCESSO
+    } catch (e: any) {
+      // (1) e (2): erro tratado e exibido no contexto + reforço no banner global
+      erroWizard = "Não foi possível salvar o experimento (nada foi gravado): " + (e.message || e);
+      erroMsg    = "Erro ao salvar experimento: " + (e.message || e);
+    } finally {
+      carregando = false;
+    }
+  }
+</script>
+
+<!-- (2) o alerta fica JUNTO do botão que dispara a ação -->
+<AlertaErro bind:mensagem={erroWizard} />
+<div class="form-actions">
+  <button onclick={salvarExperimentoCompleto}>Salvar experimento completo</button>
+</div>
+```
+
+#### Estados de erro por contexto
+
+| Estado | Onde é exibido | Cobre |
+|--------|----------------|-------|
+| `erroTeste` | painel de teste e formulário de início | iniciar/registrar/desfazer/finalizar/descartar |
+| `erroWizard` | formulário/wizard de experimento | criação (atômica) e edição |
+| `erroFilamento` | formulário e lista de Conjuntos de Filamentos | salvar/excluir conjunto |
+| `erroExperimento` | sub-aba ativa do experimento, formulários de grupo/animal e área de exportação | grupos, animais, estatísticas, CSV/XLSX/PDF/Prism, carga de dados |
+| `erroMsg` | banner global no topo | **reforço apenas** — nunca o único lugar |
+
+Limpe o estado local ao **abrir** o formulário e ao **iniciar** a ação (`= null`),
+para o usuário não ver um erro velho.
+
+#### `return` mudo: quando é aceitável
+
+Só quando **não houve falha de validação do usuário** — ou seja, quando o "não fazer
+nada" é o comportamento correto e esperado. Nesses casos, **comente o porquê**:
+
+```ts
+if (!showActiveTestScreen) return;  // no-op intencional: a tecla não é atalho aqui
+if (!g) return;                     // guarda interna: índice inválido não é acionável pelo usuário
+```
+
+Casos assim no código hoje: os guards de `handleAtalhosTeste`, os `if (!g)` do wizard
+e o `carregarEstatisticasGrafico` sem experimento selecionado (a seção nem é renderizada).

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { invokeCommand } from './lib/tauri';
   import GraficoCurva from './lib/GraficoCurva.svelte';
+  import AlertaErro from './lib/AlertaErro.svelte';
   import { montarTabelaPrism, tabelaPrismParaTsv, type TabelaPrism } from './lib/prism';
   import { save } from '@tauri-apps/plugin-dialog';
   import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs';
@@ -56,7 +57,19 @@
   // Estado Geral
   let activeTab = $state<'filamentos' | 'experimentos'>('experimentos');
   let carregando = $state(false);
+  /**
+   * Banner GLOBAL (topo da página). Mantido como reforço, mas nunca deve ser o
+   * único lugar onde um erro aparece — ver docs/ARQUITETURA.md §10 e os estados
+   * de erro LOCAIS abaixo (`erroTeste`, `erroWizard`, `erroFilamento`,
+   * `erroExperimento`), exibidos junto da ação que falhou.
+   */
   let erroMsg = $state<string | null>(null);
+  /** Erro local da aba/formulário de Conjuntos de Filamentos. */
+  let erroFilamento = $state<string | null>(null);
+  /** Erro local do wizard/formulário de experimento (criação e edição). */
+  let erroWizard = $state<string | null>(null);
+  /** Erro local da tela de detalhe do experimento (matriz, estatísticas, exportações). */
+  let erroExperimento = $state<string | null>(null);
   let salvoD = $state<number | null>(null);
   let salvoNome = $state<string | null>(null);
 
@@ -85,6 +98,7 @@
           listSequencias = res;
         })
         .catch(e => {
+          erroExperimento = "Não foi possível carregar as sequências deste experimento: " + (e.message || e);
           erroMsg = "Erro ao carregar sequências do experimento: " + (e.message || e);
         });
     } else {
@@ -200,6 +214,7 @@
       }
       erroMsg = null;
     } catch (e: any) {
+      erroExperimento = "Não foi possível carregar os dados: " + (e.message || e);
       erroMsg = "Erro ao carregar dados: " + (e.message || e);
     } finally {
       carregando = false;
@@ -301,6 +316,7 @@
       showStartTestForm = false;
       salvoLimiar = null;
     } catch (e: any) {
+      erroTeste = "Não foi possível retomar o teste: " + (e.message || e);
       erroMsg = "Erro ao retomar teste: " + (e.message || e);
     } finally {
       carregando = false;
@@ -311,6 +327,7 @@
     testandoAnimal = animal;
     testandoTimepoint = timepoint;
     erroMsg = null;
+    erroTeste = null;
     
     const filamentos = obterFilamentosDoExperimento();
     if (filamentos.length > 0) {
@@ -326,8 +343,19 @@
   }
 
   async function iniciarSequencia() {
-    if (!testandoAnimal || !testandoTimepoint || !testandoFilamentoInicial) return;
+    // Antes: `return` mudo — o botão parecia não fazer nada. Agora diz o que falta.
+    const animal = testandoAnimal;
+    const timepoint = testandoTimepoint;
+    const faltando: string[] = [];
+    if (!animal) faltando.push("selecionar o animal");
+    if (!timepoint) faltando.push("selecionar o timepoint");
+    if (!testandoFilamentoInicial.trim()) faltando.push("informar o filamento inicial");
+    if (!animal || !timepoint || faltando.length > 0) {
+      erroTeste = "Para iniciar o teste, falta " + faltando.join(", ") + ".";
+      return;
+    }
     erroMsg = null;
+    erroTeste = null;
     try {
       carregando = true;
       const filInicialNum = parseFloat(testandoFilamentoInicial);
@@ -336,8 +364,8 @@
       }
       
       const seq = await invokeCommand<any>('iniciar_sequencia', {
-        animalId: testandoAnimal.id,
-        timepointId: testandoTimepoint.id,
+        animalId: animal.id,
+        timepointId: timepoint.id,
         filamentoInicial: filInicialNum
       });
       
@@ -359,6 +387,7 @@
         listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
+      erroTeste = "Não foi possível iniciar o teste: " + (e.message || e);
       erroMsg = "Erro ao iniciar sequência: " + (e.message || e);
     } finally {
       carregando = false;
@@ -431,6 +460,9 @@
     return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true;
   }
 
+  // NOTA: os `return` abaixo são no-ops INTENCIONAIS (a tecla simplesmente não é
+  // um atalho neste contexto), não validações falhando — por isso não geram
+  // mensagem. Ver docs/ARQUITETURA.md §10.
   function handleAtalhosTeste(e: KeyboardEvent) {
     // Só quando a tela de teste está visível.
     if (!showActiveTestScreen) return;
@@ -456,7 +488,10 @@
   }
 
   async function cancelarSequenciaAtiva() {
-    if (!testandoSequencia) return;
+    if (!testandoSequencia) {
+      erroTeste = "Não há sequência de teste ativa para descartar.";
+      return;
+    }
     if (!confirm("Deseja mesmo descartar esta sequência em andamento? Todas as aplicações feitas nela serão apagadas.")) {
       return;
     }
@@ -475,6 +510,7 @@
         listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
+      erroTeste = "Não foi possível descartar a sequência: " + (e.message || e);
       erroMsg = "Erro ao cancelar sequência: " + (e.message || e);
     } finally {
       carregando = false;
@@ -531,6 +567,7 @@
     salvoD = null;
     salvoNome = null;
     erroMsg = null;
+    erroFilamento = null;
   }
 
   function iniciarEdicaoFilamentos(c: ConjuntoFilamentos) {
@@ -542,15 +579,16 @@
     salvoD = null;
     salvoNome = null;
     erroMsg = null;
+    erroFilamento = null;
   }
 
   async function salvarFilamentos() {
     if (!filamentoNome.trim()) {
-      erroMsg = "O nome do conjunto é obrigatório.";
+      erroFilamento = "O nome do conjunto é obrigatório.";
       return;
     }
     if (!filamentoCalcResult.ok) {
-      erroMsg = filamentoCalcResult.error ?? "Erro ao calcular.";
+      erroFilamento = filamentoCalcResult.error ?? "Erro ao calcular o valor de d.";
       return;
     }
 
@@ -576,6 +614,7 @@
       showFilamentoForm = false;
       await carregarDados();
     } catch (e: any) {
+      erroFilamento = "Não foi possível salvar o conjunto: " + (e.message || e);
       erroMsg = "Erro ao salvar conjunto: " + (e.message || e);
     } finally {
       carregando = false;
@@ -588,6 +627,7 @@
         await invokeCommand('excluir_conjunto', { id });
         await carregarDados();
       } catch (e: any) {
+        erroFilamento = "Não foi possível excluir o conjunto: " + (e.message || e);
         erroMsg = "Erro ao excluir conjunto: " + (e.message || e);
       }
     }
@@ -610,6 +650,7 @@
     refPeso = {};
     showExpForm = true;
     erroMsg = null;
+    erroWizard = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -636,7 +677,7 @@
   /** Adiciona o animal digitado no card do grupo e devolve o foco à marcação. */
   function adicionarAnimalWizard(gi: number) {
     const g = wizardGrupos[gi];
-    if (!g) return;
+    if (!g) return; // guarda interna: índice inválido não é acionável pelo usuário
     const marcacao = g.novaMarcacao.trim();
     if (!marcacao) {
       refMarcacao[gi]?.focus();
@@ -663,7 +704,7 @@
 
   function removerAnimalWizard(gi: number, ai: number) {
     const g = wizardGrupos[gi];
-    if (!g) return;
+    if (!g) return; // guarda interna: índice inválido não é acionável pelo usuário
     g.animais = g.animais.filter((_, i) => i !== ai);
   }
 
@@ -693,18 +734,18 @@
    */
   async function salvarExperimentoCompleto() {
     if (!expNome.trim()) {
-      erroMsg = "O nome do experimento é obrigatório.";
+      erroWizard = "O nome do experimento é obrigatório.";
       wizardEtapa = 1;
       return;
     }
     if (expConjuntoId === null) {
-      erroMsg = "Selecione um conjunto de filamentos.";
+      erroWizard = "Selecione um conjunto de filamentos.";
       wizardEtapa = 1;
       return;
     }
     const timepoints = expTimepoints.map(t => t.trim()).filter(t => t !== "");
     if (timepoints.length === 0) {
-      erroMsg = "O experimento deve ter pelo menos 1 timepoint.";
+      erroWizard = "O experimento deve ter pelo menos 1 timepoint.";
       wizardEtapa = 1;
       return;
     }
@@ -714,7 +755,7 @@
     );
     for (const g of gruposPreenchidos) {
       if (!g.nome.trim()) {
-        erroMsg = "Há um grupo com animais mas sem nome. Dê um nome ao grupo.";
+        erroWizard = "Há um grupo com animais mas sem nome. Dê um nome ao grupo.";
         wizardEtapa = 2;
         return;
       }
@@ -722,6 +763,7 @@
 
     try {
       carregando = true;
+      erroWizard = null;
       await invokeCommand('criar_experimento_completo', {
         nome: expNome.trim(),
         descricao: expDescricao.trim() || null,
@@ -743,6 +785,7 @@
       await carregarDados();
     } catch (e: any) {
       // Nada foi salvo (transação atômica) e o formulário permanece preenchido.
+      erroWizard = "Não foi possível salvar o experimento (nada foi gravado): " + (e.message || e);
       erroMsg = "Erro ao salvar o experimento (nada foi gravado): " + (e.message || e);
     } finally {
       carregando = false;
@@ -758,19 +801,20 @@
     expTimepoints = e.timepoints.map(t => t.rotulo);
     showExpForm = true;
     erroMsg = null;
+    erroWizard = null;
   }
 
   async function salvarExp() {
     if (!expNome.trim()) {
-      erroMsg = "O nome do experimento é obrigatório.";
+      erroWizard = "O nome do experimento é obrigatório.";
       return;
     }
     if (expConjuntoId === null) {
-      erroMsg = "Selecione um conjunto de filamentos.";
+      erroWizard = "Selecione um conjunto de filamentos.";
       return;
     }
     if (expTimepoints.length === 0) {
-      erroMsg = "O experimento deve ter pelo menos 1 timepoint.";
+      erroWizard = "O experimento deve ter pelo menos 1 timepoint.";
       return;
     }
 
@@ -797,6 +841,7 @@
       showExpForm = false;
       await carregarDados();
     } catch (e: any) {
+      erroWizard = "Não foi possível salvar o experimento: " + (e.message || e);
       erroMsg = "Erro ao salvar experimento: " + (e.message || e);
     } finally {
       carregando = false;
@@ -812,6 +857,7 @@
         }
         await carregarDados();
       } catch (e: any) {
+        erroExperimento = "Não foi possível excluir o experimento: " + (e.message || e);
         erroMsg = "Erro ao excluir experimento: " + (e.message || e);
       }
     }
@@ -834,6 +880,7 @@
     grupoCor = "#3b82f6";
     showGroupForm = true;
     erroMsg = null;
+    erroExperimento = null;
   }
 
   function iniciarEdicaoGrupo(g: GrupoCompleto) {
@@ -842,14 +889,18 @@
     grupoCor = g.cor;
     showGroupForm = true;
     erroMsg = null;
+    erroExperimento = null;
   }
 
   async function salvarGrupo() {
     if (!grupoNome.trim()) {
-      erroMsg = "O nome do grupo é obrigatório.";
+      erroExperimento = "O nome do grupo é obrigatório.";
       return;
     }
-    if (selectedExpId === null) return;
+    if (selectedExpId === null) {
+      erroExperimento = "Nenhum experimento selecionado. Abra um experimento antes de salvar o grupo.";
+      return;
+    }
 
     try {
       carregando = true;
@@ -869,6 +920,7 @@
       showGroupForm = false;
       await carregarDados();
     } catch (e: any) {
+      erroExperimento = "Não foi possível salvar o grupo: " + (e.message || e);
       erroMsg = "Erro ao salvar grupo: " + (e.message || e);
     } finally {
       carregando = false;
@@ -881,6 +933,7 @@
         await invokeCommand('excluir_grupo', { id });
         await carregarDados();
       } catch (e: any) {
+        erroExperimento = "Não foi possível excluir o grupo: " + (e.message || e);
         erroMsg = "Erro ao excluir grupo: " + (e.message || e);
       }
     }
@@ -896,6 +949,7 @@
     animalGrupoId = grupoId;
     showAnimalForm = true;
     erroMsg = null;
+    erroExperimento = null;
   }
 
   function iniciarEdicaoAnimal(a: Animal) {
@@ -905,18 +959,22 @@
     animalGrupoId = a.grupo_id;
     showAnimalForm = true;
     erroMsg = null;
+    erroExperimento = null;
   }
 
   async function salvarAnimal() {
     if (!animalMarcacao.trim()) {
-      erroMsg = "A marcação do animal é obrigatória.";
+      erroExperimento = "A marcação do animal é obrigatória.";
       return;
     }
-    if (animalGrupoId === null || selectedExpId === null) return;
+    if (animalGrupoId === null || selectedExpId === null) {
+      erroExperimento = "Não foi possível salvar o animal: grupo ou experimento não identificado. Reabra o experimento e tente de novo.";
+      return;
+    }
 
     const pesoVal = animalPeso.trim() ? parseFloat(animalPeso.replace(',', '.')) : null;
     if (pesoVal !== null && (isNaN(pesoVal) || pesoVal <= 0)) {
-      erroMsg = "Insira um peso válido e maior que zero.";
+      erroExperimento = "Insira um peso válido e maior que zero.";
       return;
     }
 
@@ -940,6 +998,7 @@
       showAnimalForm = false;
       await carregarDados();
     } catch (e: any) {
+      erroExperimento = "Não foi possível salvar o animal: " + (e.message || e);
       erroMsg = "Erro ao salvar animal: " + (e.message || e);
     } finally {
       carregando = false;
@@ -952,6 +1011,7 @@
         await invokeCommand('excluir_animal', { id });
         await carregarDados();
       } catch (e: any) {
+        erroExperimento = "Não foi possível excluir o animal: " + (e.message || e);
         erroMsg = "Erro ao excluir animal: " + (e.message || e);
       }
     }
@@ -961,12 +1021,15 @@
   const IS_TAURI = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
 
   async function carregarEstatisticasGrafico() {
+    // Sem experimento selecionado não há o que carregar: a seção nem é renderizada.
+    // Não é uma validação de usuário, então não gera mensagem.
     if (selectedExpId === null) return;
     carregando = true;
     try {
       expStats = await invokeCommand<any[]>('calcular_estatisticas_experimento', { experimentoId: selectedExpId });
       expTab = 'grafico';
     } catch (e: any) {
+      erroExperimento = "Não foi possível carregar as estatísticas: " + (e.message || e);
       erroMsg = "Erro ao carregar estatísticas do experimento: " + (e.message || e);
     } finally {
       carregando = false;
@@ -1065,7 +1128,10 @@
 
   /** Monta o TSV dos limiares no formato do Prism e copia para o clipboard. */
   async function copiarParaPrism() {
-    if (selectedExpId === null || !selectedExp) return;
+    if (selectedExpId === null || !selectedExp) {
+      erroExperimento = "Nenhum experimento selecionado. Abra um experimento para usar esta ação.";
+      return;
+    }
     carregando = true;
     try {
       const limiaresData = await invokeCommand<any[]>('obter_limiares_experimento', { experimentoId: selectedExpId });
@@ -1078,9 +1144,10 @@
         if (prismTimeout) clearTimeout(prismTimeout);
         prismTimeout = setTimeout(() => { prismCopiado = false; }, 2000);
       } else {
-        erroMsg = 'Não foi possível copiar automaticamente. Use a pré-visualização abaixo: selecione o texto e copie com Ctrl+C.';
+        erroExperimento = 'Não foi possível copiar automaticamente. Use a pré-visualização abaixo: selecione o texto e copie com Ctrl+C.';
       }
     } catch (e: any) {
+      erroExperimento = 'Não foi possível preparar os dados para o Prism: ' + (e.message || e);
       erroMsg = 'Erro ao preparar dados para o Prism: ' + (e.message || e);
     } finally {
       carregando = false;
@@ -1088,7 +1155,10 @@
   }
 
   async function exportarCSV() {
-    if (selectedExpId === null || !selectedExp) return;
+    if (selectedExpId === null || !selectedExp) {
+      erroExperimento = "Nenhum experimento selecionado. Abra um experimento para usar esta ação.";
+      return;
+    }
     carregando = true;
     try {
       const rawData = await invokeCommand<any[]>('obter_respostas_cruas_experimento', { experimentoId: selectedExpId });
@@ -1109,6 +1179,7 @@
 
       await salvarArquivoTexto(`experimento_${selectedExp.nome.replace(/\s+/g, '_')}_export.csv`, 'csv', csv, 'text/csv;charset=utf-8');
     } catch (e: any) {
+      erroExperimento = "Não foi possível exportar o CSV: " + (e.message || e);
       erroMsg = "Erro ao exportar CSV: " + (e.message || e);
     } finally {
       carregando = false;
@@ -1116,7 +1187,10 @@
   }
 
   async function exportarXLSX() {
-    if (selectedExpId === null || !selectedExp) return;
+    if (selectedExpId === null || !selectedExp) {
+      erroExperimento = "Nenhum experimento selecionado. Abra um experimento para usar esta ação.";
+      return;
+    }
     carregando = true;
     try {
       const rawData = await invokeCommand<any[]>('obter_respostas_cruas_experimento', { experimentoId: selectedExpId });
@@ -1168,6 +1242,7 @@
         wbout
       );
     } catch (e: any) {
+      erroExperimento = "Não foi possível exportar o XLSX: " + (e.message || e);
       erroMsg = "Erro ao exportar XLSX: " + (e.message || e);
     } finally {
       carregando = false;
@@ -1175,7 +1250,10 @@
   }
 
   async function exportarPDF() {
-    if (selectedExpId === null || !selectedExp) return;
+    if (selectedExpId === null || !selectedExp) {
+      erroExperimento = "Nenhum experimento selecionado. Abra um experimento para usar esta ação.";
+      return;
+    }
     carregando = true;
     try {
       const doc = new jsPDF();
@@ -1296,6 +1374,7 @@
         pdfArrayBuffer
       );
     } catch (e: any) {
+      erroExperimento = "Não foi possível gerar o PDF: " + (e.message || e);
       erroMsg = "Erro ao gerar PDF: " + (e.message || e);
     } finally {
       carregando = false;
@@ -1369,6 +1448,12 @@
           </button>
         </div>
 
+        <!-- Erro local da LISTA (ex.: falha ao excluir com o formulário fechado).
+             Quando o formulário está aberto, o alerta aparece lá, junto do Salvar. -->
+        {#if !showFilamentoForm}
+          <AlertaErro bind:mensagem={erroFilamento} />
+        {/if}
+
         {#if conjuntos.length === 0}
           <div class="empty-state">
             <p>Nenhum conjunto cadastrado.</p>
@@ -1408,7 +1493,7 @@
         <section class="section-form">
           <div class="form-container">
             <h2>{filamentoEditandoId !== null ? "Editar Conjunto" : "Novo Conjunto"}</h2>
-            
+
             <div class="form-group">
               <label for="fil-nome">Nome do Conjunto *</label>
               <input id="fil-nome" type="text" bind:value={filamentoNome} placeholder="Ex: Kit padrão do laboratório" class="form-control" />
@@ -1446,6 +1531,9 @@
                 <div class="calc-error"><span>⚠️ {filamentoCalcResult.error}</span></div>
               {/if}
             </div>
+
+            <!-- Erro local, junto do botão Salvar (§10) -->
+            <AlertaErro bind:mensagem={erroFilamento} />
 
             <div class="form-actions">
               <button onclick={() => showFilamentoForm = false} class="btn-link" type="button">Cancelar</button>
@@ -1573,6 +1661,9 @@
                 </div>
               </div>
 
+              <!-- Erro local do formulário/wizard, junto dos botões (§10) -->
+              <AlertaErro bind:mensagem={erroWizard} />
+
               {#if expEditandoId !== null}
                 <!-- MODO EDIÇÃO: mantém o comportamento anterior (só dados + timepoints). -->
                 <div class="form-actions">
@@ -1582,11 +1673,11 @@
               {:else}
                 <!-- MODO CRIAÇÃO (wizard): avança para grupos/animais na mesma tela. -->
                 <div class="form-actions">
-                  <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
-                  <button onclick={() => { erroMsg = null; wizardEtapa = 2; }} class="btn-primary"
+                  <button onclick={() => { erroMsg = null; erroWizard = null; wizardEtapa = 2; }} class="btn-primary"
                           disabled={!expNome.trim() || expConjuntoId === null || expTimepoints.filter(t => t.trim()).length === 0}>
                     Próximo: Grupos e Animais →
                   </button>
+                  <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
                 </div>
               {/if}
             {/if}
@@ -1648,13 +1739,17 @@
                 {/each}
               </div>
 
+              <!-- Erro local da etapa 2, junto do botão de salvar (§10).
+                   Em caso de falha o formulário NÃO é limpo (criação é atômica). -->
+              <AlertaErro bind:mensagem={erroWizard} />
+
               <div class="form-actions">
-                <button onclick={() => { erroMsg = null; wizardEtapa = 1; }} class="btn-link" type="button">← Voltar</button>
-                <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
                 <button onclick={salvarExperimentoCompleto} class="btn-primary"
                         disabled={!expNome.trim() || expConjuntoId === null || carregando}>
                   {carregando ? 'Salvando…' : '💾 Salvar experimento completo'}
                 </button>
+                <button onclick={() => { erroMsg = null; erroWizard = null; wizardEtapa = 1; }} class="btn-link" type="button">← Voltar</button>
+                <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
               </div>
             {/if}
             </div>
@@ -1697,6 +1792,13 @@
             📊 Gráfico & Exportação
           </button>
         </div>
+
+        <!-- Erro local do experimento, no topo da sub-aba ativa (§10).
+             Na aba de gráfico o alerta fica junto dos botões de exportação, que
+             ficam bem abaixo — por isso é excluído aqui. -->
+        {#if expTab !== 'grafico' && !showGroupForm && !showAnimalForm}
+          <AlertaErro bind:mensagem={erroExperimento} />
+        {/if}
 
         <div class="detail-banner">
           <div class="detail-banner-title">
@@ -1746,6 +1848,7 @@
                   </div>
                 </div>
               </div>
+              <AlertaErro bind:mensagem={erroExperimento} />
               <div class="form-actions">
                 <button onclick={() => showGroupForm = false} class="btn-link" type="button">Cancelar</button>
                 <button onclick={salvarGrupo} class="btn-primary" disabled={!grupoNome.trim() || carregando}>Salvar Grupo</button>
@@ -1774,6 +1877,7 @@
                   <input id="ani-peso" type="text" bind:value={animalPeso} placeholder="Ex: 25.4" class="form-control" />
                 </div>
               </div>
+              <AlertaErro bind:mensagem={erroExperimento} />
               <div class="form-actions">
                 <button onclick={() => showAnimalForm = false} class="btn-link" type="button">Cancelar</button>
                 <button onclick={salvarAnimal} class="btn-primary" disabled={!animalMarcacao.trim() || animalGrupoId === null || carregando}>Salvar Animal</button>
@@ -1875,6 +1979,9 @@
                     Recomendação: Escolha um filamento próximo ao limiar médio estimado (geralmente o valor do meio do kit).
                   </p>
                 </div>
+                <!-- Erro local do início do teste, junto do botão (§10) -->
+                <AlertaErro bind:mensagem={erroTeste} />
+
                 <div class="form-actions" style="justify-content: flex-start; margin-top: 24px;">
                   <button class="btn-primary" onclick={iniciarSequencia} disabled={!testandoFilamentoInicial || carregando}>
                     Iniciar Teste 🧪
@@ -1973,12 +2080,7 @@
               </div>
 
               <!-- Erro DESTA tela, exibido junto aos botões (não só no topo da página) -->
-              {#if erroTeste}
-                <div class="alert alert-error" style="margin-top: 16px;">
-                  <strong>Erro:</strong> {erroTeste}
-                  <button onclick={() => erroTeste = null} class="btn-close">&times;</button>
-                </div>
-              {/if}
+              <AlertaErro bind:mensagem={erroTeste} />
 
               <div class="form-actions" style="border-top: 1px solid var(--border); padding-top: 16px;">
                 <button class="btn-primary" onclick={finalizarTeste} disabled={!testandoUltimaSugestao.pode_finalizar || carregando} style="background-color: #22c55e; border-color: #22c55e; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);">
@@ -2133,6 +2235,9 @@
                </div>
 
                <!-- Botões de Exportação -->
+               <!-- Erro local junto dos botões de exportação (§10) -->
+               <AlertaErro bind:mensagem={erroExperimento} />
+
                <div class="export-actions-row" style="display: flex; gap: 12px; margin-top: 24px; margin-bottom: 24px; flex-wrap: wrap;">
                  <button class="btn-primary" onclick={exportarCSV} disabled={carregando}>
                    📄 Exportar CSV

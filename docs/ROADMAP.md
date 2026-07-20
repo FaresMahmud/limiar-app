@@ -143,6 +143,22 @@ Duas melhorias levantadas no primeiro uso real do app.
 - 📌 **Princípio adotado:** nenhum comando pode falhar em silêncio — todo erro deve
   aparecer **onde o usuário está olhando**.
 
+## Etapa 5.3 — Erros locais em todo o app ✅ (concluída)
+
+Generalização do princípio da etapa 5.2 (ARQUITETURA.md §10 e §10.1).
+
+- ✅ **Componente reutilizável** [`src/lib/AlertaErro.svelte`](../src/lib/AlertaErro.svelte)
+  (estilos auto-contidos, `bind:mensagem`, botão de fechar).
+- ✅ **4 estados de erro por contexto**: `erroTeste`, `erroWizard`, `erroFilamento`,
+  `erroExperimento` — exibidos **junto da ação**; `erroMsg` (topo) vira só reforço.
+- ✅ **18 `catch` + 7 validações de frontend** passaram a alimentar o erro local
+  além do global.
+- ✅ **`return` mudos eliminados** onde havia validação de usuário (`iniciarSequencia`
+  agora diz o que falta; guards de grupo/animal/exportações informam). Os `return`
+  legitimamente silenciosos (atalhos de teclado, guardas internas) foram
+  **comentados** explicando por quê.
+- ✅ Erros locais são limpos ao abrir o formulário e ao iniciar a ação.
+
 ## Etapa 6 — Testes em máquina fraca / Performance ⬜
 
 - ⬜ Validar RAM/disco/responsividade num notebook fraco real (requisito de leveza).
