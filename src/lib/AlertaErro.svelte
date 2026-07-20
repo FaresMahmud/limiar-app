@@ -17,22 +17,32 @@
    */
   let {
     mensagem = $bindable(null),
-    titulo = "Erro",
+    titulo,
+    variante = "erro",
   }: {
     mensagem?: string | null;
     titulo?: string;
+    /**
+     * `erro` (vermelho) = a ação FALHOU.
+     * `aviso` (âmbar) = a ação deu certo, mas algo merece atenção (ex.: itens
+     * ignorados numa colagem). Não use `erro` para sucesso parcial — o sinal
+     * vermelho faz o usuário achar que nada foi salvo.
+     */
+    variante?: "erro" | "aviso";
   } = $props();
+
+  const tituloEfetivo = $derived(titulo ?? (variante === "aviso" ? "Aviso" : "Erro"));
 </script>
 
 {#if mensagem}
-  <div class="alerta-erro" role="alert" aria-live="polite">
-    <span><strong>{titulo}:</strong> {mensagem}</span>
+  <div class="alerta {variante}" role="alert" aria-live="polite">
+    <span><strong>{tituloEfetivo}:</strong> {mensagem}</span>
     <button type="button" onclick={() => (mensagem = null)} aria-label="Fechar aviso">&times;</button>
   </div>
 {/if}
 
 <style>
-  .alerta-erro {
+  .alerta {
     padding: 14px 16px;
     border-radius: 8px;
     margin: 12px 0;
@@ -42,12 +52,21 @@
     gap: 12px;
     font-size: 14px;
     line-height: 1.45;
+  }
+
+  .alerta.erro {
     background-color: #fee2e2;
     border: 1px solid #fecaca;
     color: #991b1b;
   }
 
-  .alerta-erro button {
+  .alerta.aviso {
+    background-color: #fef3c7;
+    border: 1px solid #fde68a;
+    color: #92400e;
+  }
+
+  .alerta button {
     background: none;
     border: none;
     font-size: 20px;
@@ -59,15 +78,20 @@
     flex-shrink: 0;
   }
 
-  .alerta-erro button:hover {
+  .alerta button:hover {
     opacity: 1;
   }
 
   @media (prefers-color-scheme: dark) {
-    .alerta-erro {
+    .alerta.erro {
       background-color: rgba(153, 27, 27, 0.22);
       border-color: rgba(248, 113, 113, 0.45);
       color: #fca5a5;
+    }
+    .alerta.aviso {
+      background-color: rgba(146, 64, 14, 0.22);
+      border-color: rgba(251, 191, 36, 0.45);
+      color: #fcd34d;
     }
   }
 </style>

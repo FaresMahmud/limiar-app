@@ -4,6 +4,7 @@
   import GraficoCurva from './lib/GraficoCurva.svelte';
   import AlertaErro from './lib/AlertaErro.svelte';
   import { montarTabelaPrism, tabelaPrismParaTsv, type TabelaPrism } from './lib/prism';
+  import { parsearListaAnimais, resumirColagem } from './lib/animais';
   import { save } from '@tauri-apps/plugin-dialog';
   import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs';
   import * as XLSX from 'xlsx';
@@ -68,6 +69,8 @@
   let erroFilamento = $state<string | null>(null);
   /** Erro local do wizard/formulário de experimento (criação e edição). */
   let erroWizard = $state<string | null>(null);
+  /** Aviso (âmbar) do wizard: a ação deu certo, mas algo foi ignorado. */
+  let avisoWizard = $state<string | null>(null);
   /** Erro local da tela de detalhe do experimento (matriz, estatísticas, exportações). */
   let erroExperimento = $state<string | null>(null);
   let salvoD = $state<number | null>(null);
@@ -123,6 +126,10 @@
     animais: WizardAnimal[];
     novaMarcacao: string;
     novoPeso: string;
+    /** Painel "Colar lista" aberto neste card? */
+    mostrandoColagem: boolean;
+    /** Texto colado pelo usuário (uma linha por animal). */
+    textoColagem: string;
   }
   const CORES_GRUPO = ["#3b82f6", "#ef4444", "#16a34a", "#f59e0b", "#8b5cf6", "#ec4899"];
   let wizardEtapa = $state<1 | 2>(1);
@@ -646,6 +653,7 @@
     // Wizard começa na etapa 1, já com um grupo em branco pronto para preencher.
     wizardEtapa = 1;
     wizardGrupos = [novoGrupoWizard(0)];
+    avisoWizard = null;
     refMarcacao = {};
     refPeso = {};
     showExpForm = true;
@@ -663,6 +671,8 @@
       animais: [],
       novaMarcacao: "",
       novoPeso: "",
+      mostrandoColagem: false,
+      textoColagem: "",
     };
   }
 
@@ -700,6 +710,74 @@
     erroMsg = null;
     // Volta o foco para digitar o próximo animal imediatamente.
     setTimeout(() => refMarcacao[gi]?.focus(), 0);
+  }
+
+  // ---- Colagem em massa de animais ("Colar lista") ----
+
+  /** Abre/fecha o painel de colagem do card do grupo. */
+  function alternarColagemWizard(gi: number) {
+    const g = wizardGrupos[gi];
+    if (!g) return; // guarda interna: índice inválido não é acionável pelo usuário
+    g.mostrandoColagem = !g.mostrandoColagem;
+    if (!g.mostrandoColagem) g.textoColagem = "";
+    erroWizard = null;
+    avisoWizard = null;
+  }
+
+  /**
+   * Prévia reativa da colagem do grupo `gi` (não altera nada; só interpreta o
+   * texto para mostrar quantos animais serão adicionados antes de confirmar).
+   */
+  function previaColagem(g: WizardGrupo) {
+    return parsearListaAnimais(
+      g.textoColagem,
+      g.animais.map((a) => a.marcacao)
+    );
+  }
+
+  /** Confirma a colagem: adiciona os animais válidos e reporta o que foi ignorado. */
+  function aplicarColagemWizard(gi: number) {
+    const g = wizardGrupos[gi];
+    if (!g) return; // guarda interna
+    const r = previaColagem(g);
+
+    if (r.animais.length === 0) {
+      // Nada a adicionar: explica o motivo em vez de falhar em silêncio (§10).
+      if (r.invalidas.length > 0 || r.duplicadas.length > 0) {
+        erroWizard =
+          "Nenhum animal novo na lista colada. " +
+          (r.duplicadas.length > 0 ? `Duplicadas: ${r.duplicadas.join(", ")}. ` : "") +
+          (r.invalidas.length > 0
+            ? `Linhas com problema: ${r.invalidas.map((l) => `linha ${l.numero} (${l.motivo})`).join("; ")}.`
+            : "");
+      } else {
+        erroWizard = "Cole ao menos uma marcação (um animal por linha) antes de adicionar.";
+      }
+      return;
+    }
+
+    g.animais = [
+      ...g.animais,
+      ...r.animais.map((a) => ({
+        marcacao: a.marcacao,
+        peso: a.peso === null ? "" : String(a.peso),
+      })),
+    ];
+    g.textoColagem = "";
+    g.mostrandoColagem = false;
+
+    // Adicionou com sucesso, mas houve descartes: AVISO (âmbar), não erro.
+    erroWizard = null;
+    if (r.invalidas.length > 0 || r.duplicadas.length > 0) {
+      avisoWizard =
+        `${r.animais.length} animal(is) adicionado(s). Ignorados: ` +
+        (r.duplicadas.length > 0 ? `duplicadas (${r.duplicadas.join(", ")}) ` : "") +
+        (r.invalidas.length > 0
+          ? `linhas ${r.invalidas.map((l) => `${l.numero} (${l.motivo})`).join("; ")}`
+          : "");
+    } else {
+      avisoWizard = null;
+    }
   }
 
   function removerAnimalWizard(gi: number, ai: number) {
@@ -1734,7 +1812,46 @@
                              onkeydown={(e) => onEnterPeso(e, gi)}
                              placeholder="Peso g (opcional)" class="form-control-small" style="max-width: 150px;" />
                       <button onclick={() => adicionarAnimalWizard(gi)} class="btn-small-add" type="button">+ Animal</button>
+                      <button onclick={() => alternarColagemWizard(gi)} class="btn-small-add" type="button"
+                              title="Colar vários animais de uma vez (um por linha)">
+                        {g.mostrandoColagem ? '✕ Fechar colagem' : '📋 Colar lista'}
+                      </button>
                     </div>
+
+                    {#if g.mostrandoColagem}
+                      {@const previa = previaColagem(g)}
+                      <div class="wizard-colagem">
+                        <label for="colagem-{gi}" class="wizard-colagem-label">
+                          Cole a lista — <strong>um animal por linha</strong>.
+                          O peso é opcional e pode vir depois da marcação, separado por
+                          espaço, vírgula, ponto e vírgula ou TAB (colagem direta do Excel).
+                        </label>
+                        <textarea id="colagem-{gi}" bind:value={g.textoColagem} rows="5"
+                                  class="form-control" spellcheck="false"
+                                  placeholder={"4P 25.4\n2L 26,1\n1P1L\n3P;27"}></textarea>
+
+                        {#if g.textoColagem.trim() !== ''}
+                          <p class="wizard-colagem-previa">
+                            {resumirColagem(previa)}
+                          </p>
+                          {#if previa.invalidas.length > 0}
+                            <ul class="wizard-colagem-problemas">
+                              {#each previa.invalidas as inv}
+                                <li>Linha {inv.numero}: {inv.motivo} — <code>{inv.conteudo.trim()}</code></li>
+                              {/each}
+                            </ul>
+                          {/if}
+                        {/if}
+
+                        <div class="wizard-colagem-acoes">
+                          <button onclick={() => aplicarColagemWizard(gi)} class="btn-small-add" type="button"
+                                  disabled={previa.animais.length === 0}>
+                            + Adicionar {previa.animais.length} animal(is)
+                          </button>
+                          <button onclick={() => alternarColagemWizard(gi)} class="btn-link" type="button">Cancelar</button>
+                        </div>
+                      </div>
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -1742,6 +1859,8 @@
               <!-- Erro local da etapa 2, junto do botão de salvar (§10).
                    Em caso de falha o formulário NÃO é limpo (criação é atômica). -->
               <AlertaErro bind:mensagem={erroWizard} />
+              <!-- Aviso âmbar: a colagem funcionou, mas algo foi ignorado. -->
+              <AlertaErro bind:mensagem={avisoWizard} variante="aviso" />
 
               <div class="form-actions">
                 <button onclick={salvarExperimentoCompleto} class="btn-primary"
@@ -3599,6 +3718,45 @@
     gap: 8px;
     margin-top: 10px;
     flex-wrap: wrap;
+  }
+
+  /* ---- Colagem em massa de animais ---- */
+  .wizard-colagem {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background-color: var(--code-bg);
+  }
+  .wizard-colagem-label {
+    display: block;
+    font-size: 12px;
+    opacity: 0.85;
+    line-height: 1.45;
+    margin-bottom: 8px;
+  }
+  .wizard-colagem textarea {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    width: 100%;
+  }
+  .wizard-colagem-previa {
+    margin: 8px 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .wizard-colagem-problemas {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    opacity: 0.85;
+    color: #b45309;
+  }
+  .wizard-colagem-acoes {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
   }
 
   .motivo-desabilitado {

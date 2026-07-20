@@ -159,6 +159,25 @@ Generalização do princípio da etapa 5.2 (ARQUITETURA.md §10 e §10.1).
   **comentados** explicando por quê.
 - ✅ Erros locais são limpos ao abrir o formulário e ao iniciar a ação.
 
+## Etapa 5.4 — Colagem em massa de animais ✅ (concluída)
+
+- ✅ Botão **"📋 Colar lista"** dentro de cada card de grupo do wizard: abre um
+  textarea para colar vários animais de uma vez (um por linha), em vez de digitar
+  um a um.
+- ✅ **Formatos aceitos** (parser puro em [`src/lib/animais.ts`](../src/lib/animais.ts)):
+  só a marcação (`4P`) ou marcação + peso separados por **espaço, TAB, vírgula ou
+  ponto e vírgula** — inclusive colagem direta do Excel. Aceita **vírgula decimal**
+  (`26,1`), padrão brasileiro. Linhas em branco são ignoradas.
+- ✅ **Prévia antes de confirmar**: mostra quantos animais foram detectados, quais
+  linhas têm problema (com número da linha e motivo) e quais marcações são
+  duplicadas. Uma linha inválida **não** impede as demais de serem aproveitadas.
+- ✅ **Duplicatas** (já no grupo ou repetidas na própria lista) são ignoradas,
+  comparando sem diferenciar maiúsculas/minúsculas.
+- ✅ Sucesso com descartes usa **aviso âmbar**, não erro vermelho — a nova variante
+  `variante="aviso"` do `AlertaErro` (usar vermelho para uma ação bem-sucedida fazia
+  o usuário achar que nada tinha sido salvo).
+- ✅ 12 testes em `src/lib/animais.test.ts` (`npm test`).
+
 ## Etapa 6 — Testes em máquina fraca / Performance ⬜
 
 - ⬜ Validar RAM/disco/responsividade num notebook fraco real (requisito de leveza).

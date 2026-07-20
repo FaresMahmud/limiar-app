@@ -354,3 +354,18 @@ if (!g) return;                     // guarda interna: índice inválido não é
 
 Casos assim no código hoje: os guards de `handleAtalhosTeste`, os `if (!g)` do wizard
 e o `carregarEstatisticasGrafico` sem experimento selecionado (a seção nem é renderizada).
+
+
+### 10.2 Variante de aviso (sucesso parcial)
+
+`AlertaErro` aceita `variante="aviso"` (âmbar) além do padrão `"erro"` (vermelho).
+
+**Use `aviso` quando a ação DEU CERTO mas algo merece atenção** — por exemplo, a
+colagem em massa de animais que adicionou 4 itens e ignorou 2 (duplicata + linha
+inválida). Sinalizar isso em vermelho como "Erro" faz o pesquisador concluir que
+nada foi salvo, o que é pior do que não avisar.
+
+```svelte
+<AlertaErro bind:mensagem={erroWizard} />                      <!-- falhou -->
+<AlertaErro bind:mensagem={avisoWizard} variante="aviso" />    <!-- deu certo, com ressalvas -->
+```
