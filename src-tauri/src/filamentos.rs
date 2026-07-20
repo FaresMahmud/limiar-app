@@ -377,8 +377,9 @@ mod tests {
     }
 
     #[test]
-    fn caso_laboratorio_principal_valores() {
-        // Kit real confirmado pelo usuário: 0.02, 0.07, 0.16, 0.4, 1.0, 2.0, 4.0
+    fn caso_kit_exemplo_valores() {
+        // Exemplo de kit de filamentos von Frey (valores de catálogo padrão):
+        // 0.02, 0.07, 0.16, 0.4, 1.0, 2.0, 4.0
         let filamentos = vec![0.02, 0.07, 0.16, 0.4, 1.0, 2.0, 4.0];
         let d = calcular_d(&filamentos).expect("deve calcular d com sucesso");
         

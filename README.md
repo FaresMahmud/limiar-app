@@ -60,3 +60,13 @@ O instalador do seu sistema operacional é gerado em
 ## Stack
 
 Tauri 2 · Rust · Svelte 5 · TypeScript · Vite · SQLite (via `rusqlite` no backend).
+
+## Licença
+
+Este projeto está licenciado sob a licença MIT — veja o arquivo [LICENSE](LICENSE)
+para mais detalhes.
+
+> ℹ️ O artigo de Dixon (1980), usado como referência científica durante o
+> desenvolvimento, **não** faz parte deste repositório: é conteúdo protegido por
+> direitos autorais de terceiros (Annual Reviews). Para reproduzir os valores da
+> Tabela 7, consulte o artigo original na fonte.

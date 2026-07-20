@@ -6,8 +6,8 @@ const IS_TAURI = typeof window !== 'undefined' && (window as any).__TAURI_INTERN
 let mockConjuntos = [
   {
     id: 1,
-    nome: "Kit de camundongo padrão do laboratório",
-    descricao: "Valores típicos do laboratório principal",
+    nome: "Kit padrão de camundongo (exemplo)",
+    descricao: "Valores de catálogo típicos para camundongo",
     d: 0.3835,
     criado_em: new Date().toISOString(),
     atualizado_em: new Date().toISOString(),
@@ -15,7 +15,7 @@ let mockConjuntos = [
   },
   {
     id: 2,
-    nome: "Kit da colega (Dixon Figura 6)",
+    nome: "Kit do exemplo de Dixon (Figura 6)",
     descricao: "Valores usados no exemplo do artigo de Dixon",
     d: 0.301,
     criado_em: new Date().toISOString(),
@@ -27,11 +27,11 @@ let mockConjuntos = [
 let mockExperimentos = [
   {
     id: 1,
-    nome: "Estudo Basal Morfina 2026",
-    descricao: "Avaliação do limiar nociceptivo após indução de hiperalgesia e tratamento com Morfina.",
+    nome: "Experimento de Exemplo — Curva Temporal",
+    descricao: "Experimento de demonstração para testar o fluxo do sistema.",
     conjunto_id: 1,
-    conjunto_nome: "Kit de camundongo padrão do laboratório",
-    responsavel: "Dr. Fares Mahmud",
+    conjunto_nome: "Kit padrão de camundongo (exemplo)",
+    responsavel: "Dr. Exemplo",
     criado_em: new Date().toISOString(),
     atualizado_em: new Date().toISOString(),
     timepoints: [
@@ -46,7 +46,7 @@ let mockExperimentos = [
       {
         id: 1,
         experimento_id: 1,
-        nome: "Grupo Controle (Salina)",
+        nome: "Grupo A (Controle)",
         cor: "#3b82f6",
         animais: [
           { id: 1, experimento_id: 1, grupo_id: 1, marcacao: "1P", peso: 24.5 },
@@ -56,7 +56,7 @@ let mockExperimentos = [
       {
         id: 2,
         experimento_id: 1,
-        nome: "Grupo Tratado (Morfina 5mg/kg)",
+        nome: "Grupo B (Tratamento)",
         cor: "#ef4444",
         animais: [
           { id: 3, experimento_id: 1, grupo_id: 2, marcacao: "1L", peso: 25.0 },

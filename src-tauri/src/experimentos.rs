@@ -912,7 +912,7 @@ mod tests {
             "Estudo Wizard",
             Some("descricao"),
             1,
-            Some("Dr. Fares"),
+            Some("Dr. Exemplo"),
             &timepoints,
             &grupos_exemplo(),
         )
