@@ -3,6 +3,7 @@
   import { invokeCommand } from './lib/tauri';
   import GraficoCurva from './lib/GraficoCurva.svelte';
   import AlertaErro from './lib/AlertaErro.svelte';
+  import Rodape from './lib/Rodape.svelte';
   import { montarTabelaPrism, tabelaPrismParaTsv, type TabelaPrism } from './lib/prism';
   import { parsearListaAnimais, resumirColagem } from './lib/animais';
   import { save } from '@tauri-apps/plugin-dialog';
@@ -2446,6 +2447,9 @@
       </div>
     {/if}
   {/if}
+
+  <!-- Créditos de autoria (discreto, no fim do fluxo) -->
+  <Rodape />
 </main>
 
 <style>

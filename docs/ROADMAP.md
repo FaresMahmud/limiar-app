@@ -178,6 +178,16 @@ Generalização do princípio da etapa 5.2 (ARQUITETURA.md §10 e §10.1).
   o usuário achar que nada tinha sido salvo).
 - ✅ 12 testes em `src/lib/animais.test.ts` (`npm test`).
 
+## Etapa 5.5 — Rodapé de créditos ✅ (concluída)
+
+- ✅ Rodapé discreto no fim do `<main>`: `Desenvolvido por Fares Mahmud · LinkedIn · GitHub`
+  (12px, cinza `--text` com opacidade 0.6, sem negrito, sem a cor de destaque roxa).
+- ✅ Links abrem no **navegador padrão do sistema** via `@tauri-apps/plugin-shell`
+  (`open`), com fallback `window.open` no modo mock. Ver ARQUITETURA.md §11.
+- ✅ Plugin `tauri-plugin-shell` registrado em `lib.rs` + permissão `shell:allow-open`.
+- ⚠️ **Pendente de validação no ambiente nativo** (`npx tauri dev` na VM): confirmar
+  que o clique abre o navegador do sistema e não a janela do app.
+
 ## Etapa 6 — Testes em máquina fraca / Performance ⬜
 
 - ⬜ Validar RAM/disco/responsividade num notebook fraco real (requisito de leveza).

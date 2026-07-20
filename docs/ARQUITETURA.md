@@ -369,3 +369,34 @@ nada foi salvo, o que é pior do que não avisar.
 <AlertaErro bind:mensagem={erroWizard} />                      <!-- falhou -->
 <AlertaErro bind:mensagem={avisoWizard} variante="aviso" />    <!-- deu certo, com ressalvas -->
 ```
+
+---
+
+## 11. Links externos (créditos no rodapé)
+
+Um `<a href="https://...">` comum **não é confiável dentro do WebView nativo** do
+Tauri: dependendo da plataforma ele navega a própria janela do app (o usuário
+"perde" o aplicativo) ou simplesmente não faz nada.
+
+**Decisão:** links externos são abertos pelo **`@tauri-apps/plugin-shell`**
+(`open(url)`), que entrega a URL ao **navegador padrão do sistema**. No navegador
+puro (`npm run dev`, sem Tauri) há fallback para `window.open(url, "_blank",
+"noopener,noreferrer")`, para o modo mock continuar utilizável.
+
+- Plugin registrado em [`lib.rs`](../src-tauri/src/lib.rs) (`tauri_plugin_shell::init()`).
+- Permissão `shell:allow-open` em `src-tauri/capabilities/default.json`.
+- Implementação em [`src/lib/Rodape.svelte`](../src/lib/Rodape.svelte).
+
+**Nota de segurança:** `shell:allow-open` permite ao frontend abrir URLs no
+programa padrão. O risco aqui é baixo porque o frontend é 100% local (bundle
+próprio, sem conteúdo remoto) e o app **não usa `{@html}`** em lugar nenhum — não
+há superfície de XSS para transformar isso em execução arbitrária. Se um dia for
+preciso renderizar conteúdo não confiável, troque por um comando Rust que valide
+a URL contra uma lista branca antes de abrir.
+
+**Estilo do rodapé:** assinatura de autoria deliberadamente discreta — 12px,
+`var(--text)` com `opacity: 0.6`, sem negrito e **sem a cor de destaque roxa**
+(`--accent`) dos botões principais. Fica **no fluxo** (rola com o conteúdo), no fim
+do `<main>`, e **não fixo**: um rodapé fixo consumiria altura permanente e poderia
+sobrepor as telas de trabalho (wizard, execução do teste, gráfico) em notebooks de
+tela pequena — justamente o público-alvo do app.

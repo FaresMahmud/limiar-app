@@ -151,6 +151,10 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
+    // Abre links externos (créditos no rodapé) no navegador PADRÃO do sistema,
+    // não dentro do WebView — um <a href> comum não funciona de forma confiável
+    // no WebView nativo. Ver ARQUITETURA.md §11.
+    .plugin(tauri_plugin_shell::init())
     .setup(|app| {
       use tauri::Manager;
 
