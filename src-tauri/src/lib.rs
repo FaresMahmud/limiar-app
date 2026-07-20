@@ -9,7 +9,7 @@ use filamentos::{
     criar_conjunto, editar_conjunto, excluir_conjunto, listar_conjuntos, recalcular_d_conjunto,
 };
 use experimentos::{
-    criar_experimento, listar_experimentos, obter_experimento, editar_experimento, excluir_experimento,
+    criar_experimento, criar_experimento_completo, listar_experimentos, obter_experimento, editar_experimento, excluir_experimento,
     criar_grupo, editar_grupo, excluir_grupo,
     criar_animal, editar_animal, excluir_animal,
 };
@@ -179,6 +179,7 @@ pub fn run() {
         excluir_conjunto,
         recalcular_d_conjunto,
         criar_experimento,
+        criar_experimento_completo,
         listar_experimentos,
         obter_experimento,
         editar_experimento,

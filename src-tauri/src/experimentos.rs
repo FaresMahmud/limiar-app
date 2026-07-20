@@ -117,6 +117,166 @@ pub fn criar_experimento(
     buscar_experimento_por_id(&conn, experimento_id)
 }
 
+// =============================================================================
+// CRIAÇÃO ATÔMICA (wizard): experimento + timepoints + grupos + animais
+// =============================================================================
+
+/// Animal informado pelo wizard (ainda sem id — será criado).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NovoAnimalInput {
+    pub marcacao: String,
+    pub peso: Option<f64>,
+}
+
+/// Grupo informado pelo wizard, já com seus animais aninhados.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NovoGrupoInput {
+    pub nome: String,
+    pub cor: String,
+    #[serde(default)]
+    pub animais: Vec<NovoAnimalInput>,
+}
+
+/// Núcleo da criação atômica, separado do `AppHandle` para ser testável com um
+/// banco em memória. **Tudo é criado numa única transação SQLite**: se qualquer
+/// inserção falhar, a transação é descartada (rollback) e NADA fica salvo pela
+/// metade. Ver docs/ARQUITETURA.md §9.
+///
+/// Todas as validações acontecem ANTES de abrir a transação, para que erros de
+/// preenchimento não cheguem sequer a tocar o banco.
+pub fn criar_experimento_completo_conn(
+    conn: &mut Connection,
+    nome: &str,
+    descricao: Option<&str>,
+    conjunto_id: i64,
+    responsavel: Option<&str>,
+    timepoints: &[String],
+    grupos: &[NovoGrupoInput],
+) -> Result<i64, String> {
+    // ---- Validações (nenhuma escrita ainda) ----
+    if nome.trim().is_empty() {
+        return Err("O nome do experimento é obrigatório.".to_string());
+    }
+    let timepoints_validos: Vec<&str> = timepoints
+        .iter()
+        .map(|t| t.trim())
+        .filter(|t| !t.is_empty())
+        .collect();
+    if timepoints_validos.is_empty() {
+        return Err("O experimento deve ter pelo menos 1 timepoint.".to_string());
+    }
+    for g in grupos {
+        if g.nome.trim().is_empty() {
+            return Err("O nome do grupo não pode ser vazio.".to_string());
+        }
+        if g.cor.trim().is_empty() {
+            return Err(format!("O grupo '{}' precisa de uma cor.", g.nome.trim()));
+        }
+        for a in &g.animais {
+            if a.marcacao.trim().is_empty() {
+                return Err(format!(
+                    "Há um animal sem marcação no grupo '{}'.",
+                    g.nome.trim()
+                ));
+            }
+            if let Some(p) = a.peso {
+                if !p.is_finite() || p <= 0.0 {
+                    return Err(format!(
+                        "O peso do animal '{}' deve ser maior que zero.",
+                        a.marcacao.trim()
+                    ));
+                }
+            }
+        }
+    }
+
+    // O conjunto de filamentos precisa existir e estar ativo (trava o `d` correto).
+    let conjunto_ok: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM conjuntos_filamentos WHERE id = ?1 AND ativo = 1",
+            params![conjunto_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Falha ao verificar o conjunto de filamentos: {}", e))?;
+    if conjunto_ok == 0 {
+        return Err("Conjunto de filamentos não encontrado ou inativo.".to_string());
+    }
+
+    // ---- Transação única: tudo ou nada ----
+    let tx = conn
+        .transaction()
+        .map_err(|e| format!("Falha ao iniciar transação: {}", e))?;
+
+    tx.execute(
+        "INSERT INTO experimentos (nome, descricao, conjunto_id, responsavel, ativo) VALUES (?1, ?2, ?3, ?4, 1)",
+        params![nome.trim(), descricao, conjunto_id, responsavel],
+    )
+    .map_err(|e| format!("Falha ao salvar experimento: {}", e))?;
+    let experimento_id = tx.last_insert_rowid();
+
+    for (i, rotulo) in timepoints_validos.iter().enumerate() {
+        tx.execute(
+            "INSERT INTO timepoints (experimento_id, rotulo, ordem, opcional) VALUES (?1, ?2, ?3, 0)",
+            params![experimento_id, rotulo, i as i64],
+        )
+        .map_err(|e| format!("Falha ao salvar timepoint '{}': {}", rotulo, e))?;
+    }
+
+    for g in grupos {
+        tx.execute(
+            "INSERT INTO grupos (experimento_id, nome, cor, ativo) VALUES (?1, ?2, ?3, 1)",
+            params![experimento_id, g.nome.trim(), g.cor.trim()],
+        )
+        .map_err(|e| format!("Falha ao salvar grupo '{}': {}", g.nome.trim(), e))?;
+        let grupo_id = tx.last_insert_rowid();
+
+        for a in &g.animais {
+            tx.execute(
+                "INSERT INTO animais (experimento_id, grupo_id, marcacao, peso, ativo) VALUES (?1, ?2, ?3, ?4, 1)",
+                params![experimento_id, grupo_id, a.marcacao.trim(), a.peso],
+            )
+            .map_err(|e| {
+                format!(
+                    "Falha ao salvar animal '{}' do grupo '{}': {}",
+                    a.marcacao.trim(),
+                    g.nome.trim(),
+                    e
+                )
+            })?;
+        }
+    }
+
+    tx.commit()
+        .map_err(|e| format!("Falha ao confirmar transação: {}", e))?;
+
+    Ok(experimento_id)
+}
+
+/// Comando Tauri: cria o experimento inteiro (dados + timepoints + grupos +
+/// animais) numa **única transação**. Usado pelo wizard de criação.
+#[tauri::command]
+pub fn criar_experimento_completo(
+    app_handle: tauri::AppHandle,
+    nome: String,
+    descricao: Option<String>,
+    conjunto_id: i64,
+    responsavel: Option<String>,
+    timepoints: Vec<String>,
+    grupos: Vec<NovoGrupoInput>,
+) -> Result<ExperimentoCompletoDto, String> {
+    let mut conn = obter_conexao(&app_handle)?;
+    let experimento_id = criar_experimento_completo_conn(
+        &mut conn,
+        &nome,
+        descricao.as_deref(),
+        conjunto_id,
+        responsavel.as_deref(),
+        &timepoints,
+        &grupos,
+    )?;
+    buscar_experimento_por_id(&conn, experimento_id)
+}
+
 /// Comando Tauri: Lista todos os experimentos ativos.
 #[tauri::command]
 pub fn listar_experimentos(app_handle: tauri::AppHandle) -> Result<Vec<ExperimentoCompletoDto>, String> {
@@ -708,5 +868,164 @@ mod tests {
             params![exp_id],
         ).unwrap();
         assert!(buscar_experimento_por_id(&conn, exp_id).is_err()); // experimento inativo dá erro ao buscar
+    }
+
+    // =========================================================================
+    // CRIAÇÃO ATÔMICA (wizard) — criar_experimento_completo_conn
+    // =========================================================================
+
+    fn grupos_exemplo() -> Vec<NovoGrupoInput> {
+        vec![
+            NovoGrupoInput {
+                nome: "Controle".into(),
+                cor: "#3b82f6".into(),
+                animais: vec![
+                    NovoAnimalInput { marcacao: "1P".into(), peso: Some(25.0) },
+                    NovoAnimalInput { marcacao: "2P".into(), peso: Some(26.5) },
+                ],
+            },
+            NovoGrupoInput {
+                nome: "Tratado".into(),
+                cor: "#ef4444".into(),
+                animais: vec![
+                    NovoAnimalInput { marcacao: "1L".into(), peso: Some(24.2) },
+                    NovoAnimalInput { marcacao: "2L".into(), peso: None },
+                    NovoAnimalInput { marcacao: "3L".into(), peso: Some(27.0) },
+                ],
+            },
+        ]
+    }
+
+    fn contar(conn: &Connection, tabela: &str) -> i64 {
+        conn.query_row(&format!("SELECT COUNT(*) FROM {}", tabela), [], |r| r.get(0))
+            .unwrap()
+    }
+
+    /// Caminho feliz: cria experimento + timepoints + grupos + animais de uma vez.
+    #[test]
+    fn criar_completo_cria_tudo_numa_transacao() {
+        let mut conn = inicializar_banco_mock();
+        let timepoints = vec!["basal 1".to_string(), "1h".to_string(), "2h".to_string()];
+
+        let exp_id = criar_experimento_completo_conn(
+            &mut conn,
+            "Estudo Wizard",
+            Some("descricao"),
+            1,
+            Some("Dr. Fares"),
+            &timepoints,
+            &grupos_exemplo(),
+        )
+        .expect("deve criar o experimento completo");
+
+        let exp = buscar_experimento_por_id(&conn, exp_id).unwrap();
+        assert_eq!(exp.nome, "Estudo Wizard");
+        assert_eq!(exp.timepoints.len(), 3);
+        assert_eq!(exp.timepoints[0].rotulo, "basal 1");
+        assert_eq!(exp.timepoints[2].ordem, 2, "ordem cronológica preservada");
+        assert_eq!(exp.grupos.len(), 2);
+        assert_eq!(exp.grupos[0].nome, "Controle");
+        assert_eq!(exp.grupos[0].animais.len(), 2);
+        assert_eq!(exp.grupos[1].animais.len(), 3);
+        assert_eq!(exp.grupos[1].animais[1].marcacao, "2L");
+        assert!(exp.grupos[1].animais[1].peso.is_none(), "peso é opcional");
+    }
+
+    /// ATOMICIDADE: se uma inserção falhar NO MEIO da transação (aqui, ao inserir
+    /// animais), nada pode ficar salvo — nem o experimento, nem timepoints, nem grupos.
+    #[test]
+    fn criar_completo_faz_rollback_total_em_falha_no_meio() {
+        let mut conn = inicializar_banco_mock();
+
+        // Sabota a tabela de animais: as inserções de experimento/timepoints/grupos
+        // acontecem normalmente e a falha ocorre já dentro da transação.
+        conn.execute_batch("DROP TABLE animais;").unwrap();
+
+        let timepoints = vec!["basal 1".to_string(), "1h".to_string()];
+        let resultado = criar_experimento_completo_conn(
+            &mut conn,
+            "Estudo Que Falha",
+            None,
+            1,
+            None,
+            &timepoints,
+            &grupos_exemplo(),
+        );
+
+        assert!(resultado.is_err(), "deve falhar ao inserir animais");
+        let msg = resultado.unwrap_err();
+        assert!(msg.contains("animal"), "erro deve ser claro sobre o animal: {}", msg);
+
+        // Nada pode ter sobrado no banco (rollback total).
+        assert_eq!(contar(&conn, "experimentos"), 0, "experimento não pode ficar salvo");
+        assert_eq!(contar(&conn, "grupos"), 0, "grupos não podem ficar salvos");
+        assert_eq!(contar(&conn, "timepoints"), 0, "timepoints não podem ficar salvos");
+    }
+
+    /// Validações acontecem ANTES da transação: entrada inválida não toca o banco.
+    #[test]
+    fn criar_completo_valida_antes_de_escrever() {
+        let mut conn = inicializar_banco_mock();
+        let timepoints = vec!["basal 1".to_string()];
+
+        // Grupo com animal sem marcação.
+        let grupos_invalidos = vec![NovoGrupoInput {
+            nome: "Controle".into(),
+            cor: "#3b82f6".into(),
+            animais: vec![NovoAnimalInput { marcacao: "   ".into(), peso: None }],
+        }];
+        let r = criar_experimento_completo_conn(
+            &mut conn, "Exp", None, 1, None, &timepoints, &grupos_invalidos,
+        );
+        assert!(r.is_err());
+        assert_eq!(contar(&conn, "experimentos"), 0);
+
+        // Sem timepoints.
+        let r = criar_experimento_completo_conn(
+            &mut conn, "Exp", None, 1, None, &[], &grupos_exemplo(),
+        );
+        assert!(r.is_err());
+        assert_eq!(contar(&conn, "experimentos"), 0);
+
+        // Nome vazio.
+        let r = criar_experimento_completo_conn(
+            &mut conn, "   ", None, 1, None, &timepoints, &grupos_exemplo(),
+        );
+        assert!(r.is_err());
+        assert_eq!(contar(&conn, "experimentos"), 0);
+
+        // Peso inválido.
+        let grupos_peso_ruim = vec![NovoGrupoInput {
+            nome: "Controle".into(),
+            cor: "#3b82f6".into(),
+            animais: vec![NovoAnimalInput { marcacao: "1P".into(), peso: Some(0.0) }],
+        }];
+        let r = criar_experimento_completo_conn(
+            &mut conn, "Exp", None, 1, None, &timepoints, &grupos_peso_ruim,
+        );
+        assert!(r.is_err());
+        assert_eq!(contar(&conn, "experimentos"), 0);
+
+        // Conjunto de filamentos inexistente.
+        let r = criar_experimento_completo_conn(
+            &mut conn, "Exp", None, 999, None, &timepoints, &grupos_exemplo(),
+        );
+        assert!(r.is_err());
+        assert_eq!(contar(&conn, "experimentos"), 0);
+    }
+
+    /// Um experimento sem grupos é válido (grupos podem ser adicionados depois).
+    #[test]
+    fn criar_completo_aceita_experimento_sem_grupos() {
+        let mut conn = inicializar_banco_mock();
+        let exp_id = criar_experimento_completo_conn(
+            &mut conn, "Só estrutura", None, 1, None,
+            &vec!["basal 1".to_string()], &[],
+        )
+        .expect("deve permitir criar sem grupos");
+
+        let exp = buscar_experimento_por_id(&conn, exp_id).unwrap();
+        assert_eq!(exp.grupos.len(), 0);
+        assert_eq!(exp.timepoints.len(), 1);
     }
 }

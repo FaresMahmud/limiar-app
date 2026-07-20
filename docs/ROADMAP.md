@@ -103,6 +103,32 @@ porque o build completo do app está bloqueado (ver abaixo).
   (+ `prism.test.ts`, `npm test`); reaproveita `obter_limiares_experimento` (sem
   novo comando Rust). Testado end-to-end no `npm run dev` (mock). Ver DOMINIO.md §8.
 
+## Etapa 5.1 — Melhorias de UX pós-teste manual ✅ (concluída)
+
+Duas melhorias levantadas no primeiro uso real do app.
+
+- ✅ **Wizard de criação de experimento (fluxo contínuo)**: criar experimento deixou
+  de exigir salvamentos intermediários e navegação entre telas. Agora é um assistente
+  de 2 etapas na mesma tela — *Etapa 1:* dados + conjunto de filamentos + timepoints;
+  *Etapa 2:* grupos como cards inline, cada um com sua lista de animais e um campo
+  rápido de adição. Um único botão **"Salvar experimento completo"** grava tudo.
+- ✅ **Criação atômica no backend**: novo comando `criar_experimento_completo`
+  (`experimentos.rs`) grava experimento + timepoints + grupos + animais numa **única
+  transação SQLite**. Falha no meio ⇒ **rollback total** (nada pela metade); o
+  formulário **não é limpo** em caso de erro. Ver ARQUITETURA.md §9.1.
+  Testes: `criar_completo_cria_tudo_numa_transacao`,
+  `criar_completo_faz_rollback_total_em_falha_no_meio`,
+  `criar_completo_valida_antes_de_escrever`, `criar_completo_aceita_experimento_sem_grupos`.
+- ✅ **Atalhos de produtividade no cadastro de animais**: <kbd>Enter</kbd> na marcação
+  pula para o peso; <kbd>Enter</kbd> no peso adiciona o animal e devolve o foco a uma
+  nova marcação — permite cadastrar vários animais sem tirar as mãos do teclado.
+- ✅ **Atalhos de teclado no fluxo de teste**: <kbd>0</kbd> = Não respondeu (O),
+  <kbd>1</kbd> = Respondeu (X), <kbd>Backspace</kbd> = desfazer. Só na tela de teste,
+  nunca com foco em campo de texto, e **sem atalho para finalizar** (evita finalização
+  acidental). Dica visual discreta junto aos botões. Ver ARQUITETURA.md §9.2.
+- ℹ️ **Edição continua incremental**: adicionar grupos/animais a experimentos já
+  existentes segue pelos comandos antigos — só a criação inicial mudou.
+
 ## Etapa 6 — Testes em máquina fraca / Performance ⬜
 
 - ⬜ Validar RAM/disco/responsividade num notebook fraco real (requisito de leveza).

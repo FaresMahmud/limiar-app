@@ -80,7 +80,7 @@
   // Carregar sequências reativamente ao selecionar experimento
   $effect(() => {
     if (selectedExpId !== null) {
-      invokeCommand<any[]>('listar_sequencias_concluidas', { experimento_id: selectedExpId })
+      invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId })
         .then(res => {
           listSequencias = res;
         })
@@ -100,6 +100,22 @@
   let expConjuntoId = $state<number | null>(null);
   let expResponsavel = $state("");
   let expTimepoints = $state<string[]>([]);
+
+  // ---- Wizard de criação de experimento (experimento + grupos + animais de uma vez) ----
+  interface WizardAnimal { marcacao: string; peso: string; }
+  interface WizardGrupo {
+    nome: string;
+    cor: string;
+    animais: WizardAnimal[];
+    novaMarcacao: string;
+    novoPeso: string;
+  }
+  const CORES_GRUPO = ["#3b82f6", "#ef4444", "#16a34a", "#f59e0b", "#8b5cf6", "#ec4899"];
+  let wizardEtapa = $state<1 | 2>(1);
+  let wizardGrupos = $state<WizardGrupo[]>([]);
+  // refs para o fluxo de foco com Enter (marcação → peso → adiciona → marcação)
+  let refMarcacao = $state<Record<number, HTMLInputElement | undefined>>({});
+  let refPeso = $state<Record<number, HTMLInputElement | undefined>>({});
 
   let showGroupForm = $state(false);
   let grupoEditandoId = $state<number | null>(null);
@@ -172,7 +188,7 @@
       conjuntos = await invokeCommand<ConjuntoFilamentos[]>('listar_conjuntos');
       experimentos = await invokeCommand<ExperimentoCompleto[]>('listar_experimentos');
       if (selectedExpId !== null) {
-        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimento_id: selectedExpId });
+        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
       erroMsg = null;
     } catch (e: any) {
@@ -236,8 +252,8 @@
       testandoTimepoint = timepoint;
       
       const seq = await invokeCommand<any>('obter_sequencia_ativa', { 
-        animal_id: animal.id, 
-        timepoint_id: timepoint.id 
+        animalId: animal.id, 
+        timepointId: timepoint.id 
       });
       
       if (!seq) {
@@ -248,7 +264,7 @@
       
       if (seq.respostas.length === 0) {
         testandoUltimaSugestao = {
-          sequencia_id: seq.id,
+          sequenciaId: seq.id,
           proximo_filamento: seq.filamento_inicial,
           aviso: null,
           n_nominal: 0,
@@ -264,7 +280,7 @@
         const n_nominal = mockCalcularNNominalLocal(respostasStr);
         
         testandoUltimaSugestao = {
-          sequencia_id: seq.id,
+          sequenciaId: seq.id,
           proximo_filamento: resSug.proximo,
           aviso: resSug.aviso,
           n_nominal,
@@ -312,14 +328,14 @@
       }
       
       const seq = await invokeCommand<any>('iniciar_sequencia', {
-        animal_id: testandoAnimal.id,
-        timepoint_id: testandoTimepoint.id,
-        filamento_inicial: filInicialNum
+        animalId: testandoAnimal.id,
+        timepointId: testandoTimepoint.id,
+        filamentoInicial: filInicialNum
       });
       
       testandoSequencia = seq;
       testandoUltimaSugestao = {
-        sequencia_id: seq.id,
+        sequenciaId: seq.id,
         proximo_filamento: seq.filamento_inicial,
         aviso: null,
         n_nominal: 0,
@@ -332,7 +348,7 @@
       
       // Atualiza a lista local de sequências
       if (selectedExpId !== null) {
-        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimento_id: selectedExpId });
+        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
       erroMsg = "Erro ao iniciar sequência: " + (e.message || e);
@@ -347,14 +363,14 @@
     try {
       carregando = true;
       const sugestao = await invokeCommand<any>('registrar_resposta', {
-        sequencia_id: testandoSequencia.id,
+        sequenciaId: testandoSequencia.id,
         resposta: resp
       });
       testandoUltimaSugestao = sugestao;
       
       // Atualiza em tempo real
       if (selectedExpId !== null) {
-        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimento_id: selectedExpId });
+        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
       erroMsg = "Erro ao registrar resposta: " + (e.message || e);
@@ -369,18 +385,55 @@
     try {
       carregando = true;
       const sugestao = await invokeCommand<any>('desfazer_ultima_resposta', {
-        sequencia_id: testandoSequencia.id
+        sequenciaId: testandoSequencia.id
       });
       testandoUltimaSugestao = sugestao;
       
       // Atualiza em tempo real
       if (selectedExpId !== null) {
-        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimento_id: selectedExpId });
+        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
       erroMsg = "Erro ao desfazer resposta: " + (e.message || e);
     } finally {
       carregando = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ATALHOS DE TECLADO — só na tela de execução do teste
+  // 0 = Não respondeu (O) · 1 = Respondeu (X) · Backspace = Desfazer
+  // Propositalmente NÃO há atalho para finalizar a sequência (evita finalização
+  // acidental — essa ação exige clique). Ver docs/DOMINIO.md §9.
+  // ---------------------------------------------------------------------------
+  function focoEmCampoDeTexto(alvo: EventTarget | null): boolean {
+    const el = alvo as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName?.toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true;
+  }
+
+  function handleAtalhosTeste(e: KeyboardEvent) {
+    // Só quando a tela de teste está visível.
+    if (!showActiveTestScreen) return;
+    // Não sequestrar o teclado se o usuário estiver digitando num campo.
+    if (focoEmCampoDeTexto(e.target)) return;
+    // Não interferir em combinações (Ctrl+R, Alt+Tab, etc.).
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (carregando) return;
+
+    if (e.key === '0') {
+      e.preventDefault();
+      registrarResposta('O');
+    } else if (e.key === '1') {
+      e.preventDefault();
+      registrarResposta('X');
+    } else if (e.key === 'Backspace') {
+      // Backspace fora de um campo navegaria/voltaria a página — sempre prevenir.
+      e.preventDefault();
+      if ((testandoUltimaSugestao?.respostas?.length ?? 0) > 0) {
+        desfazerUltima();
+      }
     }
   }
 
@@ -401,7 +454,7 @@
       testandoUltimaSugestao = null;
       
       if (selectedExpId !== null) {
-        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimento_id: selectedExpId });
+        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
       erroMsg = "Erro ao cancelar sequência: " + (e.message || e);
@@ -416,7 +469,7 @@
     try {
       carregando = true;
       const resultado = await invokeCommand<any>('finalizar_sequencia', {
-        sequencia_id: testandoSequencia.id
+        sequenciaId: testandoSequencia.id
       });
       
       salvoLimiar = resultado.limiar;
@@ -431,7 +484,7 @@
       
       await carregarDados();
       if (selectedExpId !== null) {
-        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimento_id: selectedExpId });
+        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
       erroMsg = "Erro ao finalizar teste: " + (e.message || e);
@@ -524,8 +577,150 @@
     expConjuntoId = conjuntos.length > 0 ? conjuntos[0].id : null;
     expResponsavel = "";
     expTimepoints = ["basal 1", "indução", "basal 2", "tratamento", "1h", "2h", "4h", "6h"];
+    // Wizard começa na etapa 1, já com um grupo em branco pronto para preencher.
+    wizardEtapa = 1;
+    wizardGrupos = [novoGrupoWizard(0)];
+    refMarcacao = {};
+    refPeso = {};
     showExpForm = true;
     erroMsg = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // WIZARD: grupos e animais montados em memória e salvos de uma vez só
+  // ---------------------------------------------------------------------------
+  function novoGrupoWizard(indice: number): WizardGrupo {
+    return {
+      nome: "",
+      cor: CORES_GRUPO[indice % CORES_GRUPO.length],
+      animais: [],
+      novaMarcacao: "",
+      novoPeso: "",
+    };
+  }
+
+  function adicionarGrupoWizard() {
+    wizardGrupos = [...wizardGrupos, novoGrupoWizard(wizardGrupos.length)];
+  }
+
+  function removerGrupoWizard(indice: number) {
+    wizardGrupos = wizardGrupos.filter((_, i) => i !== indice);
+  }
+
+  /** Adiciona o animal digitado no card do grupo e devolve o foco à marcação. */
+  function adicionarAnimalWizard(gi: number) {
+    const g = wizardGrupos[gi];
+    if (!g) return;
+    const marcacao = g.novaMarcacao.trim();
+    if (!marcacao) {
+      refMarcacao[gi]?.focus();
+      return;
+    }
+    const pesoTexto = g.novoPeso.trim().replace(",", ".");
+    let peso: number | null = null;
+    if (pesoTexto !== "") {
+      const n = Number(pesoTexto);
+      if (!Number.isFinite(n) || n <= 0) {
+        erroMsg = `Peso inválido para o animal "${marcacao}" (use um número maior que zero).`;
+        refPeso[gi]?.focus();
+        return;
+      }
+      peso = n;
+    }
+    g.animais = [...g.animais, { marcacao, peso: peso === null ? "" : String(peso) }];
+    g.novaMarcacao = "";
+    g.novoPeso = "";
+    erroMsg = null;
+    // Volta o foco para digitar o próximo animal imediatamente.
+    setTimeout(() => refMarcacao[gi]?.focus(), 0);
+  }
+
+  function removerAnimalWizard(gi: number, ai: number) {
+    const g = wizardGrupos[gi];
+    if (!g) return;
+    g.animais = g.animais.filter((_, i) => i !== ai);
+  }
+
+  /** Enter na marcação → pula para o peso. */
+  function onEnterMarcacao(e: KeyboardEvent, gi: number) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      refPeso[gi]?.focus();
+    }
+  }
+
+  /** Enter no peso → adiciona o animal e volta o foco para uma nova marcação. */
+  function onEnterPeso(e: KeyboardEvent, gi: number) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      adicionarAnimalWizard(gi);
+    }
+  }
+
+  const totalAnimaisWizard = $derived(
+    wizardGrupos.reduce((soma, g) => soma + g.animais.length, 0)
+  );
+
+  /**
+   * Salva TUDO de uma vez (experimento + timepoints + grupos + animais) via o
+   * comando atômico do backend. Em caso de erro, mantém o formulário preenchido.
+   */
+  async function salvarExperimentoCompleto() {
+    if (!expNome.trim()) {
+      erroMsg = "O nome do experimento é obrigatório.";
+      wizardEtapa = 1;
+      return;
+    }
+    if (expConjuntoId === null) {
+      erroMsg = "Selecione um conjunto de filamentos.";
+      wizardEtapa = 1;
+      return;
+    }
+    const timepoints = expTimepoints.map(t => t.trim()).filter(t => t !== "");
+    if (timepoints.length === 0) {
+      erroMsg = "O experimento deve ter pelo menos 1 timepoint.";
+      wizardEtapa = 1;
+      return;
+    }
+    // Grupos sem nome só são um problema se o usuário tiver começado a preenchê-los.
+    const gruposPreenchidos = wizardGrupos.filter(
+      g => g.nome.trim() !== "" || g.animais.length > 0
+    );
+    for (const g of gruposPreenchidos) {
+      if (!g.nome.trim()) {
+        erroMsg = "Há um grupo com animais mas sem nome. Dê um nome ao grupo.";
+        wizardEtapa = 2;
+        return;
+      }
+    }
+
+    try {
+      carregando = true;
+      await invokeCommand('criar_experimento_completo', {
+        nome: expNome.trim(),
+        descricao: expDescricao.trim() || null,
+        conjuntoId: expConjuntoId,
+        responsavel: expResponsavel.trim() || null,
+        timepoints,
+        grupos: gruposPreenchidos.map(g => ({
+          nome: g.nome.trim(),
+          cor: g.cor,
+          animais: g.animais.map(a => ({
+            marcacao: a.marcacao,
+            peso: a.peso === "" ? null : Number(a.peso),
+          })),
+        })),
+      });
+      // Só limpa/fecha em caso de sucesso.
+      showExpForm = false;
+      erroMsg = null;
+      await carregarDados();
+    } catch (e: any) {
+      // Nada foi salvo (transação atômica) e o formulário permanece preenchido.
+      erroMsg = "Erro ao salvar o experimento (nada foi gravado): " + (e.message || e);
+    } finally {
+      carregando = false;
+    }
   }
 
   function iniciarEdicaoExp(e: ExperimentoCompleto) {
@@ -560,7 +755,7 @@
           id: expEditandoId,
           nome: expNome.trim(),
           descricao: expDescricao.trim() || null,
-          conjunto_id: expConjuntoId,
+          conjuntoId: expConjuntoId,
           responsavel: expResponsavel.trim() || null,
           timepoints: expTimepoints.filter(t => t.trim() !== '')
         });
@@ -568,7 +763,7 @@
         await invokeCommand('criar_experimento', {
           nome: expNome.trim(),
           descricao: expDescricao.trim() || null,
-          conjunto_id: expConjuntoId,
+          conjuntoId: expConjuntoId,
           responsavel: expResponsavel.trim() || null,
           timepoints: expTimepoints.filter(t => t.trim() !== '')
         });
@@ -640,7 +835,7 @@
         });
       } else {
         await invokeCommand('criar_grupo', {
-          experimento_id: selectedExpId,
+          experimentoId: selectedExpId,
           nome: grupoNome.trim(),
           cor: grupoCor
         });
@@ -704,14 +899,14 @@
       if (animalEditandoId !== null) {
         await invokeCommand('editar_animal', {
           id: animalEditandoId,
-          grupo_id: animalGrupoId,
+          grupoId: animalGrupoId,
           marcacao: animalMarcacao.trim(),
           peso: pesoVal
         });
       } else {
         await invokeCommand('criar_animal', {
-          experimento_id: selectedExpId,
-          grupo_id: animalGrupoId,
+          experimentoId: selectedExpId,
+          grupoId: animalGrupoId,
           marcacao: animalMarcacao.trim(),
           peso: pesoVal
         });
@@ -1086,6 +1281,10 @@
   });
 </script>
 
+<!-- Atalhos de teclado do fluxo de teste (0 / 1 / Backspace).
+     O handler já checa se a tela de teste está ativa e se o foco está num campo. -->
+<svelte:window onkeydown={handleAtalhosTeste} />
+
 <main class="app-container">
   <!-- Abas Globais de Navegação -->
   <nav class="app-tabs">
@@ -1293,7 +1492,17 @@
           <section class="section-form">
             <div class="form-container">
               <h2>{expEditandoId !== null ? "Editar Experimento" : "Novo Experimento"}</h2>
-              
+
+              {#if expEditandoId === null}
+                <!-- Indicador de etapas do wizard -->
+                <div class="wizard-steps">
+                  <span class="wizard-step {wizardEtapa === 1 ? 'ativo' : 'feito'}">1. Dados & timepoints</span>
+                  <span class="wizard-step-sep">→</span>
+                  <span class="wizard-step {wizardEtapa === 2 ? 'ativo' : ''}">2. Grupos & animais</span>
+                </div>
+              {/if}
+
+              {#if expEditandoId !== null || wizardEtapa === 1}
               <div class="form-group">
                 <label for="exp-nome">Nome do Experimento *</label>
                 <input id="exp-nome" type="text" bind:value={expNome} placeholder="Ex: Teste Basal de Hiperalgesia Morfina" class="form-control" />
@@ -1338,10 +1547,90 @@
                 </div>
               </div>
 
-              <div class="form-actions">
-                <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
-                <button onclick={salvarExp} class="btn-primary" disabled={!expNome.trim() || expConjuntoId === null || carregando}>Salvar Experimento</button>
+              {#if expEditandoId !== null}
+                <!-- MODO EDIÇÃO: mantém o comportamento anterior (só dados + timepoints). -->
+                <div class="form-actions">
+                  <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
+                  <button onclick={salvarExp} class="btn-primary" disabled={!expNome.trim() || expConjuntoId === null || carregando}>Salvar Experimento</button>
+                </div>
+              {:else}
+                <!-- MODO CRIAÇÃO (wizard): avança para grupos/animais na mesma tela. -->
+                <div class="form-actions">
+                  <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
+                  <button onclick={() => { erroMsg = null; wizardEtapa = 2; }} class="btn-primary"
+                          disabled={!expNome.trim() || expConjuntoId === null || expTimepoints.filter(t => t.trim()).length === 0}>
+                    Próximo: Grupos e Animais →
+                  </button>
+                </div>
+              {/if}
+            {/if}
+
+            {#if expEditandoId === null && wizardEtapa === 2}
+              <!-- ================= ETAPA 2: GRUPOS + ANIMAIS (inline) ================= -->
+              <div class="wizard-resumo">
+                <strong>{expNome.trim() || "(sem nome)"}</strong>
+                — {expTimepoints.filter(t => t.trim()).length} timepoints
+                · {wizardGrupos.filter(g => g.nome.trim() || g.animais.length).length} grupos
+                · {totalAnimaisWizard} animais
+                <button class="btn-link" type="button" onclick={() => { erroMsg = null; wizardEtapa = 1; }}>editar dados</button>
               </div>
+
+              <div class="form-group">
+                <div class="filaments-header">
+                  <span class="form-label-text">Grupos de tratamento e seus animais</span>
+                  <button onclick={adicionarGrupoWizard} class="btn-small-add" type="button">+ Adicionar grupo</button>
+                </div>
+                <p class="wizard-dica">
+                  Dica: digite a marcação e pressione <kbd>Enter</kbd> para ir ao peso;
+                  <kbd>Enter</kbd> de novo adiciona o animal e já volta para a marcação seguinte.
+                </p>
+
+                {#each wizardGrupos as g, gi (gi)}
+                  <div class="wizard-grupo-card" style="border-left: 5px solid {g.cor};">
+                    <div class="wizard-grupo-head">
+                      <input type="text" bind:value={g.nome} placeholder="Nome do grupo (ex: Controle, Morfina 5mg/kg)"
+                             class="form-control-small" style="flex: 1;" />
+                      <input type="color" bind:value={g.cor} class="wizard-cor" title="Cor do grupo" />
+                      <span class="wizard-contador">{g.animais.length} animal(is)</span>
+                      <button onclick={() => removerGrupoWizard(gi)} class="btn-remove"
+                              disabled={wizardGrupos.length <= 1} title="Remover grupo">&times;</button>
+                    </div>
+
+                    {#if g.animais.length > 0}
+                      <div class="wizard-animais-lista">
+                        {#each g.animais as a, ai (ai)}
+                          <span class="wizard-animal-chip">
+                            <strong>{a.marcacao}</strong>{a.peso ? ` · ${a.peso} g` : ''}
+                            <button onclick={() => removerAnimalWizard(gi, ai)} title="Remover animal">&times;</button>
+                          </span>
+                        {/each}
+                      </div>
+                    {/if}
+
+                    <div class="wizard-add-animal">
+                      <input type="text" bind:value={g.novaMarcacao}
+                             bind:this={refMarcacao[gi]}
+                             onkeydown={(e) => onEnterMarcacao(e, gi)}
+                             placeholder="Marcação (ex: 4P, 2L)" class="form-control-small" />
+                      <input type="text" bind:value={g.novoPeso}
+                             bind:this={refPeso[gi]}
+                             onkeydown={(e) => onEnterPeso(e, gi)}
+                             placeholder="Peso g (opcional)" class="form-control-small" style="max-width: 150px;" />
+                      <button onclick={() => adicionarAnimalWizard(gi)} class="btn-small-add" type="button">+ Animal</button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+
+              <div class="form-actions">
+                <button onclick={() => { erroMsg = null; wizardEtapa = 1; }} class="btn-link" type="button">← Voltar</button>
+                <button onclick={() => showExpForm = false} class="btn-link" type="button">Cancelar</button>
+                <button onclick={salvarExperimentoCompleto} class="btn-primary"
+                        disabled={!expNome.trim() || expConjuntoId === null || carregando}>
+                  {carregando ? 'Salvando…' : '💾 Salvar experimento completo'}
+                </button>
+              </div>
+            {/if}
             </div>
           </section>
         {:else}
@@ -1600,7 +1889,13 @@
                   <span style="font-size: 24px; font-weight: 900;">✕</span> Respondeu (X)
                 </button>
               </div>
-              
+
+              <!-- Dica discreta dos atalhos de teclado -->
+              <p class="atalhos-hint">
+                Atalhos: <kbd>0</kbd> = Não respondeu · <kbd>1</kbd> = Respondeu · <kbd>Backspace</kbd> = Desfazer
+                <span style="opacity: 0.7;">(finalizar exige clique)</span>
+              </p>
+
               <!-- Timeline -->
               <div class="response-timeline">
                 <div class="response-timeline-header">
@@ -3058,5 +3353,119 @@
     font-size: 14px;
     font-weight: 500;
     color: var(--text-h);
+  }
+
+  /* ---- Wizard de criação de experimento ---- */
+  .wizard-steps {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    font-size: 13px;
+  }
+  .wizard-step {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    opacity: 0.6;
+  }
+  .wizard-step.ativo {
+    opacity: 1;
+    font-weight: 700;
+    background-color: var(--accent-bg);
+    color: var(--accent);
+    border-color: var(--accent-border);
+  }
+  .wizard-step.feito { opacity: 0.85; }
+  .wizard-step-sep { opacity: 0.5; }
+
+  .wizard-resumo {
+    font-size: 13px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background-color: var(--code-bg);
+  }
+  .wizard-dica {
+    font-size: 12px;
+    opacity: 0.75;
+    margin: 4px 0 12px;
+  }
+
+  .wizard-grupo-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background-color: var(--bg);
+  }
+  .wizard-grupo-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .wizard-cor {
+    width: 42px;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+  .wizard-contador {
+    font-size: 12px;
+    opacity: 0.7;
+    white-space: nowrap;
+  }
+  .wizard-animais-lista {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 4px;
+  }
+  .wizard-animal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background-color: var(--code-bg);
+  }
+  .wizard-animal-chip button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: #ef4444;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+  }
+  .wizard-add-animal {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* ---- Dica de atalhos de teclado na tela de teste ---- */
+  .atalhos-hint {
+    margin: 10px 0 0;
+    font-size: 12px;
+    opacity: 0.75;
+    text-align: center;
+  }
+  .atalhos-hint kbd {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background-color: var(--code-bg);
   }
 </style>

@@ -170,3 +170,63 @@ Para atender à meta de leveza (sem Electron) e à política offline, desenhamos
 ### 8.3 Biblioteca de Relatórios e Excel (JS Leve e Portável)
 - **XLSX**: Escolhemos a biblioteca **SheetJS (`xlsx`)** instalada via npm, que é executada inteiramente na thread JS e cria planilhas Excel reais com múltiplas abas formatadas de forma leve, sem exigir dependências compiladas nativas que poderiam disparar o bloqueio do SAC.
 - **PDF**: Escolhemos a biblioteca **jsPDF** para desenhar o relatório estruturado em PDF, embutindo o gráfico nociceptivo (convertido de SVG para PNG Base64 via Canvas) e renderizando tabelas estatísticas completas.
+
+---
+
+## 9. Criação atômica do experimento (wizard) e atalhos de teclado
+
+Duas decisões de UX com consequência arquitetural, motivadas por teste manual real.
+
+### 9.1 Criação do experimento é uma operação ATÔMICA
+
+**Problema:** o fluxo original obrigava salvamentos intermediários (criar experimento
+→ salvar → reabrir → criar grupo → salvar → reabrir → criar animal…). Além de lento,
+isso deixava **estrutura pela metade** no banco se o pesquisador desistisse no meio.
+
+**Decisão:** o wizard monta experimento + timepoints + grupos + animais **em memória
+no frontend** e envia tudo num único comando, gravado numa **única transação SQLite**:
+
+- Backend: `criar_experimento_completo` (comando Tauri) →
+  `criar_experimento_completo_conn` em [`experimentos.rs`](../src-tauri/src/experimentos.rs).
+- **Todas as validações acontecem ANTES de abrir a transação** (nome, timepoints,
+  nome/cor de grupo, marcação e peso de animal, existência do conjunto de filamentos),
+  de modo que erro de preenchimento não chega a tocar o banco.
+- Se qualquer `INSERT` falhar já dentro da transação, o `Transaction` do rusqlite é
+  descartado e o SQLite faz **rollback total** — não fica experimento órfão, nem grupo,
+  nem timepoint.
+- No frontend, o erro é exibido e **o formulário NÃO é limpo** — o pesquisador não
+  perde o que digitou e pode tentar de novo.
+
+**Testes:** `criar_completo_faz_rollback_total_em_falha_no_meio` (sabota a tabela
+`animais` para forçar falha no meio e verifica que nada sobrou),
+`criar_completo_valida_antes_de_escrever` e `criar_completo_cria_tudo_numa_transacao`.
+
+**Edição continua incremental:** adicionar grupos/animais a um experimento que já
+existe segue usando os comandos `criar_grupo`/`criar_animal` — só o fluxo de **criação
+inicial** virou atômico.
+
+### 9.2 Atalhos de teclado no fluxo de teste
+
+Durante a medição o pesquisador tem as mãos ocupadas com o animal e o filamento, então
+a tela de execução aceita teclado além dos botões (os botões continuam funcionando):
+
+| Tecla | Ação |
+|-------|------|
+| `0` | Não respondeu (**O**) |
+| `1` | Respondeu (**X**) |
+| `Backspace` | Desfazer última aplicação |
+
+Regras implementadas em `handleAtalhosTeste` ([`App.svelte`](../src/App.svelte)), via
+um único listener em `<svelte:window>`:
+
+- Só agem quando **a tela de execução está visível** (`showActiveTestScreen`).
+- **Não disparam se o foco estiver num campo** (`input`/`textarea`/`select`/
+  `contenteditable`) — e nesse caso o `Backspace` **não** é bloqueado, preservando a
+  edição normal de texto.
+- Ignoram combinações com `Ctrl`/`Alt`/`Meta` e são inibidos enquanto uma gravação
+  está em andamento (`carregando`), evitando registro duplicado.
+- **Não existe atalho para "finalizar sequência e calcular limiar"** — decisão
+  deliberada: finalizar é irreversível para aquela série, então exige clique físico.
+
+Uma dica discreta ("Atalhos: 0 = Não respondeu · 1 = Respondeu · Backspace = Desfazer")
+fica logo abaixo dos botões.

@@ -191,7 +191,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
 
       // EXPERIMENTOS, GRUPOS, ANIMAIS (ETAPA 3)
       case 'criar_experimento': {
-        const { nome, descricao, conjunto_id, responsavel, timepoints } = args;
+        const { nome, descricao, conjuntoId, responsavel, timepoints } = args; const conjunto_id = conjuntoId;;
         if (!nome || nome.trim() === '') throw new Error("O nome do experimento é obrigatório.");
         const kit = mockConjuntos.find(c => c.id === conjunto_id);
         const conjunto_nome = kit ? kit.nome : "Kit Desconhecido";
@@ -217,6 +217,66 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         mockExperimentos.push(novoExp);
         return novoExp as unknown as T;
       }
+
+      // Criação atômica do wizard: experimento + timepoints + grupos + animais.
+      // No mock, "atômico" = valida tudo ANTES de inserir no array (nada parcial).
+      case 'criar_experimento_completo': {
+        const { nome, descricao, conjuntoId, responsavel, timepoints, grupos } = args;
+        const conjunto_id = conjuntoId;
+        if (!nome || nome.trim() === '') throw new Error("O nome do experimento é obrigatório.");
+        const tps: string[] = (timepoints || []).map((t: string) => t.trim()).filter((t: string) => t !== '');
+        if (tps.length === 0) throw new Error("O experimento deve ter pelo menos 1 timepoint.");
+        const kit = mockConjuntos.find(c => c.id === conjunto_id);
+        if (!kit) throw new Error("Conjunto de filamentos não encontrado ou inativo.");
+        for (const g of (grupos || [])) {
+          if (!g.nome || g.nome.trim() === '') throw new Error("O nome do grupo não pode ser vazio.");
+          for (const a of (g.animais || [])) {
+            if (!a.marcacao || a.marcacao.trim() === '') {
+              throw new Error(`Há um animal sem marcação no grupo '${g.nome}'.`);
+            }
+            if (a.peso !== null && a.peso !== undefined && !(a.peso > 0)) {
+              throw new Error(`O peso do animal '${a.marcacao}' deve ser maior que zero.`);
+            }
+          }
+        }
+
+        const expId = Date.now();
+        const novoExpCompleto = {
+          id: expId,
+          nome: nome.trim(),
+          descricao: descricao || null,
+          conjunto_id,
+          conjunto_nome: kit.nome,
+          responsavel: responsavel || null,
+          criado_em: new Date().toISOString(),
+          atualizado_em: new Date().toISOString(),
+          timepoints: tps.map((rotulo: string, idx: number) => ({
+            id: expId + 1000 + idx,
+            experimento_id: expId,
+            rotulo,
+            ordem: idx,
+            opcional: 0
+          })),
+          grupos: (grupos || []).map((g: any, gi: number) => {
+            const grupoId = expId + 2000 + gi;
+            return {
+              id: grupoId,
+              experimento_id: expId,
+              nome: g.nome.trim(),
+              cor: g.cor,
+              animais: (g.animais || []).map((a: any, ai: number) => ({
+                id: expId + 3000 + gi * 100 + ai,
+                experimento_id: expId,
+                grupo_id: grupoId,
+                marcacao: a.marcacao.trim(),
+                peso: a.peso ?? null
+              }))
+            };
+          })
+        };
+        mockExperimentos.push(novoExpCompleto);
+        return novoExpCompleto as unknown as T;
+      }
       case 'listar_experimentos': {
         return mockExperimentos as unknown as T;
       }
@@ -227,7 +287,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         return exp as unknown as T;
       }
       case 'editar_experimento': {
-        const { id, nome, descricao, conjunto_id, responsavel, timepoints } = args;
+        const { id, nome, descricao, conjuntoId, responsavel, timepoints } = args; const conjunto_id = conjuntoId;;
         if (!nome || nome.trim() === '') throw new Error("O nome do experimento é obrigatório.");
         const index = mockExperimentos.findIndex(e => e.id === id);
         if (index === -1) throw new Error("Experimento não encontrado.");
@@ -259,7 +319,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         return null as unknown as T;
       }
       case 'criar_grupo': {
-        const { experimento_id, nome, cor } = args;
+        const { experimentoId, nome, cor } = args; const experimento_id = experimentoId;;
         if (!nome || nome.trim() === '') throw new Error("O nome do grupo é obrigatório.");
         const exp = mockExperimentos.find(e => e.id === experimento_id);
         if (!exp) throw new Error("Experimento não encontrado.");
@@ -313,7 +373,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         return null as unknown as T;
       }
       case 'criar_animal': {
-        const { experimento_id, grupo_id, marcacao, peso } = args;
+        const { experimentoId, grupoId, marcacao, peso } = args; const experimento_id = experimentoId; const grupo_id = grupoId;;
         if (!marcacao || marcacao.trim() === '') throw new Error("A marcação é obrigatória.");
         const exp = mockExperimentos.find(e => e.id === experimento_id);
         if (!exp) throw new Error("Experimento não encontrado.");
@@ -331,7 +391,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         return novoAnimal as unknown as T;
       }
       case 'editar_animal': {
-        const { id, grupo_id, marcacao, peso } = args;
+        const { id, grupoId, marcacao, peso } = args; const grupo_id = grupoId;;
         if (!marcacao || marcacao.trim() === '') throw new Error("A marcação é obrigatória.");
         
         let animalEncontrado: any = null;
@@ -384,7 +444,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
 
       // FLUXO DE TESTE SEQUENCIAL (ETAPA 4 MOCKS)
       case 'iniciar_sequencia': {
-        const { animal_id, timepoint_id, filamento_inicial } = args;
+        const { animalId, timepointId, filamentoInicial } = args; const animal_id = animalId; const timepoint_id = timepointId; const filamento_inicial = filamentoInicial;;
         const ativa = mockSequencias.find(s => s.animal_id === animal_id && s.timepoint_id === timepoint_id && s.status === 'em_andamento');
         if (ativa) {
           throw new Error("Este animal já possui uma sequência de testes em andamento para este timepoint.");
@@ -407,7 +467,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
       
       case 'registrar_resposta': {
-        const { sequencia_id, resposta } = args;
+        const { sequenciaId, resposta } = args; const sequencia_id = sequenciaId;;
         const seq = mockSequencias.find(s => s.id === sequencia_id);
         if (!seq) throw new Error("Sequência não encontrada.");
         if (seq.status !== 'em_andamento') throw new Error("Esta sequência já foi finalizada.");
@@ -468,7 +528,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
 
       case 'desfazer_ultima_resposta': {
-        const { sequencia_id } = args;
+        const { sequenciaId } = args; const sequencia_id = sequenciaId;;
         const seq = mockSequencias.find(s => s.id === sequencia_id);
         if (!seq) throw new Error("Sequência não encontrada.");
         if (seq.status !== 'em_andamento') throw new Error("Apenas sequências em andamento podem ser modificadas.");
@@ -527,7 +587,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
 
       case 'finalizar_sequencia': {
-        const { sequencia_id } = args;
+        const { sequenciaId } = args; const sequencia_id = sequenciaId;;
         const seq = mockSequencias.find(s => s.id === sequencia_id);
         if (!seq) throw new Error("Sequência não encontrada.");
         if (seq.status !== 'em_andamento') throw new Error("Esta sequência já foi finalizada.");
@@ -591,7 +651,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
 
       case 'obter_sequencia_ativa': {
-        const { animal_id, timepoint_id } = args;
+        const { animalId, timepointId } = args; const animal_id = animalId; const timepoint_id = timepointId;;
         const seq = mockSequencias.find(s => s.animal_id === animal_id && s.timepoint_id === timepoint_id && s.status === 'em_andamento');
         if (!seq) return null as unknown as T;
 
@@ -616,7 +676,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
 
       case 'listar_sequencias_concluidas': {
-        const { experimento_id } = args;
+        const { experimentoId } = args; const experimento_id = experimentoId;;
         const result: any[] = [];
         
         // Achar todos os animais do experimento
@@ -672,7 +732,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
 
       case 'calcular_estatisticas_experimento': {
-        const { experimentoId } = args;
+        const { experimentoId } = args; const experimento_id = experimentoId;;
         const exp = mockExperimentos.find(e => e.id === experimentoId);
         if (!exp) return [] as unknown as T;
         
@@ -757,7 +817,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
 
       case 'obter_respostas_cruas_experimento': {
-        const { experimentoId } = args;
+        const { experimentoId } = args; const experimento_id = experimentoId;;
         const exp = mockExperimentos.find(e => e.id === experimentoId);
         if (!exp) return [] as unknown as T;
         
@@ -806,7 +866,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
       }
 
       case 'obter_limiares_experimento': {
-        const { experimentoId } = args;
+        const { experimentoId } = args; const experimento_id = experimentoId;;
         const exp = mockExperimentos.find(e => e.id === experimentoId);
         if (!exp) return [] as unknown as T;
         
