@@ -511,7 +511,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         const proximo = mockSugerirProximo(kitValores, filamento_testado, resposta);
         const respostasStr = respostas.map(r => r.resposta);
         const n_nominal = mockCalcularNNominal(respostasStr);
-        const pode_finalizar = n_nominal >= 2;
+        const pode_finalizar = n_nominal >= 2 && n_nominal <= 6; // Tabela 7 cobre N de 2 a 6
 
         return {
           sequencia_id,
@@ -570,7 +570,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
 
         const respostasStr = respostas.map(r => r.resposta);
         const n_nominal = mockCalcularNNominal(respostasStr);
-        const pode_finalizar = n_nominal >= 2;
+        const pode_finalizar = n_nominal >= 2 && n_nominal <= 6; // Tabela 7 cobre N de 2 a 6
 
         return {
           sequencia_id,

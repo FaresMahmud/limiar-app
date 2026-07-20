@@ -126,6 +126,33 @@ pub fn sugerir_proximo_filamento(
 }
 
 /// Calcula o N nominal com base na sequência de respostas O/X.
+/// N nominal máximo coberto pela Tabela 7 de Dixon (ver `dixon_table.rs`).
+pub const N_NOMINAL_MAX: usize = 6;
+
+/// A finalização só é possível quando o N nominal está na faixa que a Tabela 7
+/// cobre (2 a 6).
+///
+/// ⚠️ O limite SUPERIOR é essencial: sem ele, o botão "Finalizar" ficava habilitado
+/// em séries com N > 6, a finalização falhava sempre no motor de Dixon
+/// (`NNominalForaDaTabela`) e — como o erro era exibido só no topo da página, fora
+/// da viewport — o usuário via o botão "não fazer nada". Ver ARQUITETURA.md §10.
+pub fn pode_finalizar_agora(n_nominal: usize) -> bool {
+    n_nominal >= 2 && n_nominal <= N_NOMINAL_MAX
+}
+
+/// Aviso mostrado quando a série passou do N máximo da tabela.
+fn aviso_n_excedido(n_nominal: usize) -> Option<String> {
+    if n_nominal > N_NOMINAL_MAX {
+        Some(format!(
+            "Esta série já está em N = {}, mas a Tabela 7 de Dixon cobre apenas N de 2 a {}. \
+             Desfaça aplicações até N ≤ {} para poder finalizar, ou descarte o teste.",
+            n_nominal, N_NOMINAL_MAX, N_NOMINAL_MAX
+        ))
+    } else {
+        None
+    }
+}
+
 pub fn calcular_n_nominal_atual(respostas: &[String]) -> usize {
     if respostas.is_empty() {
         return 0;
@@ -301,7 +328,8 @@ pub fn registrar_resposta(
     
     let respostas_str: Vec<String> = respostas_atuais.iter().map(|r| r.resposta.clone()).collect();
     let n_nominal = calcular_n_nominal_atual(&respostas_str);
-    let pode_finalizar = n_nominal >= 2;
+    let pode_finalizar = pode_finalizar_agora(n_nominal);
+    let aviso = aviso_n_excedido(n_nominal).or(aviso);
 
     Ok(ProximaSugestaoDto {
         sequencia_id,
@@ -405,7 +433,8 @@ pub fn desfazer_ultima_resposta(
 
     let respostas_str: Vec<String> = respostas_restantes.iter().map(|r| r.resposta.clone()).collect();
     let n_nominal = calcular_n_nominal_atual(&respostas_str);
-    let pode_finalizar = n_nominal >= 2;
+    let pode_finalizar = pode_finalizar_agora(n_nominal);
+    let aviso = aviso_n_excedido(n_nominal).or(aviso);
 
     Ok(ProximaSugestaoDto {
         sequencia_id,
@@ -424,6 +453,17 @@ pub fn finalizar_sequencia(
     sequencia_id: i64,
 ) -> Result<ResultadoLimiarDto, String> {
     let mut conn = obter_conexao(&app_handle)?;
+    finalizar_sequencia_conn(&mut conn, sequencia_id)
+}
+
+/// Núcleo da finalização, separado do `AppHandle` para ser testável com um banco
+/// em memória. Qualquer falha aqui (sequência já finalizada, série vazia, N fora
+/// da Tabela 7 de Dixon, erro de banco) volta como `Err` e **precisa** ser exibida
+/// ao usuário — ver `erroTeste` em App.svelte e ARQUITETURA.md §10.
+pub fn finalizar_sequencia_conn(
+    conn: &mut Connection,
+    sequencia_id: i64,
+) -> Result<ResultadoLimiarDto, String> {
     let tx = conn
         .transaction()
         .map_err(|e| format!("Falha ao iniciar transação: {}", e))?;
@@ -1003,5 +1043,150 @@ mod tests {
         assert_eq!(media, 0.0);
         assert!(inf.is_none());
         assert!(sup.is_none());
+    }
+
+    // =========================================================================
+    // FINALIZAÇÃO DA SEQUÊNCIA (bug do botão "não faz nada")
+    // =========================================================================
+
+    /// Banco em memória com kit (d conhecido), experimento, grupo, animal,
+    /// timepoint e uma sequência em andamento pronta para receber respostas.
+    fn banco_com_sequencia(d: f64, filamento_inicial: f64) -> (Connection, i64) {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE conjuntos_filamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL,
+                descricao TEXT, d REAL NOT NULL, ativo INTEGER NOT NULL DEFAULT 1,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP);
+             CREATE TABLE filamentos (id INTEGER PRIMARY KEY AUTOINCREMENT, conjunto_id INTEGER NOT NULL,
+                forca_g REAL NOT NULL, ordem INTEGER NOT NULL);
+             CREATE TABLE experimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, descricao TEXT,
+                conjunto_id INTEGER NOT NULL, responsavel TEXT, ativo INTEGER NOT NULL DEFAULT 1,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP);
+             CREATE TABLE grupos (id INTEGER PRIMARY KEY AUTOINCREMENT, experimento_id INTEGER NOT NULL,
+                nome TEXT NOT NULL, cor TEXT NOT NULL, ativo INTEGER NOT NULL DEFAULT 1,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP);
+             CREATE TABLE animais (id INTEGER PRIMARY KEY AUTOINCREMENT, experimento_id INTEGER NOT NULL,
+                grupo_id INTEGER NOT NULL, marcacao TEXT NOT NULL, peso REAL, ativo INTEGER NOT NULL DEFAULT 1,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP);
+             CREATE TABLE timepoints (id INTEGER PRIMARY KEY AUTOINCREMENT, experimento_id INTEGER NOT NULL,
+                rotulo TEXT NOT NULL, ordem INTEGER NOT NULL, opcional INTEGER NOT NULL DEFAULT 0,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP);
+             CREATE TABLE sequencias_teste (id INTEGER PRIMARY KEY AUTOINCREMENT, animal_id INTEGER NOT NULL,
+                timepoint_id INTEGER NOT NULL, status TEXT NOT NULL, filamento_inicial REAL NOT NULL,
+                limiar REAL, estimativa_log REAL, k_dixon REAL, d_usado REAL, n_nominal INTEGER,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP, atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP);
+             CREATE TABLE respostas_sequencia (id INTEGER PRIMARY KEY AUTOINCREMENT, sequencia_id INTEGER NOT NULL,
+                ordem INTEGER NOT NULL, filamento_g REAL NOT NULL, resposta TEXT NOT NULL,
+                criado_em DATETIME DEFAULT CURRENT_TIMESTAMP);",
+        )
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO conjuntos_filamentos (nome, d, ativo) VALUES ('Kit Teste', ?1, 1)",
+            params![d],
+        ).unwrap();
+        conn.execute("INSERT INTO experimentos (nome, conjunto_id, ativo) VALUES ('Exp', 1, 1)", []).unwrap();
+        conn.execute("INSERT INTO grupos (experimento_id, nome, cor, ativo) VALUES (1, 'Controle', '#000', 1)", []).unwrap();
+        conn.execute("INSERT INTO animais (experimento_id, grupo_id, marcacao, ativo) VALUES (1, 1, '1P', 1)", []).unwrap();
+        conn.execute("INSERT INTO timepoints (experimento_id, rotulo, ordem) VALUES (1, 'basal 1', 0)", []).unwrap();
+        conn.execute(
+            "INSERT INTO sequencias_teste (animal_id, timepoint_id, status, filamento_inicial) VALUES (1, 1, 'em_andamento', ?1)",
+            params![filamento_inicial],
+        ).unwrap();
+        let seq_id = conn.last_insert_rowid();
+        (conn, seq_id)
+    }
+
+    fn gravar_respostas(conn: &Connection, seq_id: i64, pares: &[(f64, &str)]) {
+        for (i, (fil, resp)) in pares.iter().enumerate() {
+            conn.execute(
+                "INSERT INTO respostas_sequencia (sequencia_id, ordem, filamento_g, resposta) VALUES (?1, ?2, ?3, ?4)",
+                params![seq_id, i as i64, fil, resp],
+            ).unwrap();
+        }
+    }
+
+    /// SUCESSO: finaliza a série do exemplo do artigo (Figure 6) e confere que o
+    /// limiar é calculado e persistido, e a sequência marcada como concluída.
+    #[test]
+    fn finalizar_sequencia_calcula_e_persiste_limiar() {
+        // Série OXXOXO com doses 8,16,8,4,8,4 e d=0.301 => k=0.831, log=0.852
+        let (mut conn, seq_id) = banco_com_sequencia(0.301, 8.0);
+        gravar_respostas(&conn, seq_id, &[
+            (8.0, "O"), (16.0, "X"), (8.0, "X"), (4.0, "O"), (8.0, "X"), (4.0, "O"),
+        ]);
+
+        let r = finalizar_sequencia_conn(&mut conn, seq_id).expect("deve finalizar");
+
+        assert_eq!(r.n_nominal, 6);
+        assert!((r.k - 0.831).abs() < 0.001, "k = {}", r.k);
+        assert!((r.xf - 4.0).abs() < 1e-9, "xf = {}", r.xf);
+        assert!((r.limiar - 10f64.powf(0.852)).abs() < 0.01, "limiar = {}", r.limiar);
+
+        // Persistência: status concluída e limiar gravado.
+        let (status, limiar): (String, Option<f64>) = conn
+            .query_row("SELECT status, limiar FROM sequencias_teste WHERE id = ?1", params![seq_id],
+                |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap();
+        assert_eq!(status, "concluida");
+        assert!(limiar.is_some());
+    }
+
+    /// ERRO PROPAGADO: finalizar duas vezes deve falhar com mensagem clara
+    /// (e não ser engolido silenciosamente).
+    #[test]
+    fn finalizar_sequencia_ja_finalizada_retorna_erro() {
+        let (mut conn, seq_id) = banco_com_sequencia(0.301, 8.0);
+        gravar_respostas(&conn, seq_id, &[
+            (8.0, "O"), (16.0, "X"), (8.0, "X"), (4.0, "O"), (8.0, "X"), (4.0, "O"),
+        ]);
+        finalizar_sequencia_conn(&mut conn, seq_id).expect("primeira finalização ok");
+
+        let segunda = finalizar_sequencia_conn(&mut conn, seq_id);
+        assert!(segunda.is_err(), "a segunda finalização deve falhar");
+        let msg = segunda.unwrap_err();
+        assert!(msg.contains("já foi finalizada"), "mensagem pouco clara: {}", msg);
+    }
+
+    /// ERRO PROPAGADO: série sem nenhuma resposta.
+    #[test]
+    fn finalizar_sequencia_vazia_retorna_erro() {
+        let (mut conn, seq_id) = banco_com_sequencia(0.301, 8.0);
+        let r = finalizar_sequencia_conn(&mut conn, seq_id);
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("vazia"));
+    }
+
+    /// ERRO PROPAGADO: N nominal acima do que a Tabela 7 cobre (2..=6).
+    /// Era exatamente este caso que o botão habilitado produzia — e que aparecia
+    /// como "o botão não faz nada" porque o erro não era exibido.
+    #[test]
+    fn finalizar_sequencia_com_n_acima_de_6_retorna_erro_claro() {
+        let (mut conn, seq_id) = banco_com_sequencia(0.301, 8.0);
+        // "O" seguido de 6 respostas => segunda parte com 6 elementos => N = 7
+        gravar_respostas(&conn, seq_id, &[
+            (8.0, "O"), (16.0, "X"), (8.0, "O"), (16.0, "X"), (8.0, "O"), (16.0, "X"), (8.0, "O"),
+        ]);
+        let r = finalizar_sequencia_conn(&mut conn, seq_id);
+        assert!(r.is_err(), "N acima de 6 deve falhar");
+        let msg = r.unwrap_err();
+        assert!(msg.contains("Dixon") || msg.contains("N nominal"), "mensagem: {}", msg);
+
+        // E a sequência continua em andamento (nada foi corrompido).
+        let status: String = conn
+            .query_row("SELECT status FROM sequencias_teste WHERE id = ?1", params![seq_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(status, "em_andamento");
+    }
+
+    /// O botão só pode ser habilitado na faixa que a Tabela 7 cobre.
+    #[test]
+    fn pode_finalizar_respeita_faixa_da_tabela() {
+        assert!(!pode_finalizar_agora(0), "sem reversão não finaliza");
+        assert!(!pode_finalizar_agora(1));
+        assert!(pode_finalizar_agora(2));
+        assert!(pode_finalizar_agora(6));
+        assert!(!pode_finalizar_agora(7), "N=7 está fora da Tabela 7");
+        assert!(!pode_finalizar_agora(10));
     }
 }

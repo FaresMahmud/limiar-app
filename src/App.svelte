@@ -139,6 +139,14 @@
   let testandoUltimaSugestao = $state<any | null>(null);
   let showStartTestForm = $state(false);
   let showActiveTestScreen = $state(false);
+  /**
+   * Erro exibido DENTRO do painel de teste, junto aos botões.
+   * O banner global (`erroMsg`) fica no topo da página; durante a medição o
+   * pesquisador está com a tela rolada para baixo e nunca o veria — foi
+   * exatamente por isso que o botão "Finalizar" parecia "não fazer nada".
+   * Ver ARQUITETURA.md §10.
+   */
+  let erroTeste = $state<string | null>(null);
   let listSequencias = $state<any[]>([]);
   const concluidas = $derived(listSequencias.filter(s => s.status === 'concluida'));
   let salvoLimiar = $state<number | null>(null);
@@ -284,7 +292,7 @@
           proximo_filamento: resSug.proximo,
           aviso: resSug.aviso,
           n_nominal,
-          pode_finalizar: n_nominal >= 2,
+          pode_finalizar: n_nominal >= 2 && n_nominal <= 6, // Tabela 7 cobre N de 2 a 6
           respostas
         };
       }
@@ -358,8 +366,12 @@
   }
 
   async function registrarResposta(resp: 'O' | 'X') {
-    if (!testandoSequencia) return;
+    if (!testandoSequencia) {
+      erroTeste = "Não há sequência de teste ativa para registrar a resposta.";
+      return;
+    }
     erroMsg = null;
+    erroTeste = null;
     try {
       carregando = true;
       const sugestao = await invokeCommand<any>('registrar_resposta', {
@@ -373,6 +385,7 @@
         listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
+      erroTeste = "Não foi possível registrar a resposta: " + (e.message || e);
       erroMsg = "Erro ao registrar resposta: " + (e.message || e);
     } finally {
       carregando = false;
@@ -380,8 +393,12 @@
   }
 
   async function desfazerUltima() {
-    if (!testandoSequencia) return;
+    if (!testandoSequencia) {
+      erroTeste = "Não há sequência de teste ativa para desfazer.";
+      return;
+    }
     erroMsg = null;
+    erroTeste = null;
     try {
       carregando = true;
       const sugestao = await invokeCommand<any>('desfazer_ultima_resposta', {
@@ -394,6 +411,7 @@
         listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
+      erroTeste = "Não foi possível desfazer: " + (e.message || e);
       erroMsg = "Erro ao desfazer resposta: " + (e.message || e);
     } finally {
       carregando = false;
@@ -464,14 +482,20 @@
   }
 
   async function finalizarTeste() {
-    if (!testandoSequencia) return;
+    // Antes isto era um `return` mudo: se o estado tivesse se perdido, o clique
+    // simplesmente não fazia nada. Agora avisa o usuário.
+    if (!testandoSequencia) {
+      erroTeste = "Não há sequência de teste ativa para finalizar. Reabra o teste deste animal/timepoint.";
+      return;
+    }
     erroMsg = null;
+    erroTeste = null;
     try {
       carregando = true;
       const resultado = await invokeCommand<any>('finalizar_sequencia', {
         sequenciaId: testandoSequencia.id
       });
-      
+
       salvoLimiar = resultado.limiar;
       salvoAnimal = testandoAnimal?.marcacao || "";
       salvoTimepoint = testandoTimepoint?.rotulo || "";
@@ -487,6 +511,8 @@
         listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
       }
     } catch (e: any) {
+      // Erro visível JUNTO ao botão (o usuário está com a tela rolada até aqui).
+      erroTeste = "Não foi possível finalizar: " + (e.message || e);
       erroMsg = "Erro ao finalizar teste: " + (e.message || e);
     } finally {
       carregando = false;
@@ -1942,14 +1968,32 @@
                 </div>
                 <p style="margin: 0; font-size: 13px; opacity: 0.75; line-height: 1.4;">
                   * O critério padrão da tabela de Dixon exige uma sequência de 6 respostas válidas após a primeira reversão (reversão é a primeira mudança de resposta O&harr;X).
-                  Você pode continuar aplicando respostas adicionais se desejar, mas já pode clicar em Finalizar quando o botão verde for ativado.
+                  A Tabela 7 cobre N de 2 a 6: com N &gt; 6 não é possível calcular o limiar — desfaça aplicações até voltar para N &le; 6.
                 </p>
               </div>
-              
+
+              <!-- Erro DESTA tela, exibido junto aos botões (não só no topo da página) -->
+              {#if erroTeste}
+                <div class="alert alert-error" style="margin-top: 16px;">
+                  <strong>Erro:</strong> {erroTeste}
+                  <button onclick={() => erroTeste = null} class="btn-close">&times;</button>
+                </div>
+              {/if}
+
               <div class="form-actions" style="border-top: 1px solid var(--border); padding-top: 16px;">
                 <button class="btn-primary" onclick={finalizarTeste} disabled={!testandoUltimaSugestao.pode_finalizar || carregando} style="background-color: #22c55e; border-color: #22c55e; box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);">
                   Finalizar Teste e Calcular Limiar 🔬
                 </button>
+                {#if !testandoUltimaSugestao.pode_finalizar}
+                  <!-- Explica POR QUE o botão está desabilitado (antes ficava sem explicação) -->
+                  <span class="motivo-desabilitado">
+                    {#if testandoUltimaSugestao.n_nominal > 6}
+                      N = {testandoUltimaSugestao.n_nominal} está acima do máximo da Tabela 7 (6). Desfaça aplicações para finalizar.
+                    {:else}
+                      Ainda não é possível finalizar: registre respostas até haver uma reversão (O&harr;X).
+                    {/if}
+                  </span>
+                {/if}
                 <button class="btn-link" onclick={() => { showActiveTestScreen = false; testandoAnimal = null; testandoTimepoint = null; testandoSequencia = null; testandoUltimaSugestao = null; }} type="button">
                   Voltar para Matriz (Manter Ativo)
                 </button>
@@ -3450,6 +3494,14 @@
     gap: 8px;
     margin-top: 10px;
     flex-wrap: wrap;
+  }
+
+  .motivo-desabilitado {
+    font-size: 12px;
+    opacity: 0.8;
+    align-self: center;
+    max-width: 420px;
+    line-height: 1.35;
   }
 
   /* ---- Dica de atalhos de teclado na tela de teste ---- */

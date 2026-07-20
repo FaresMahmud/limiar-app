@@ -129,6 +129,20 @@ Duas melhorias levantadas no primeiro uso real do app.
 - ℹ️ **Edição continua incremental**: adicionar grupos/animais a experimentos já
   existentes segue pelos comandos antigos — só a criação inicial mudou.
 
+## Etapa 5.2 — Correção: botão "Finalizar" falhava em silêncio ✅ (concluída)
+
+- ✅ **Causa raiz:** o erro **existia mas era invisível** (banner de erro no topo da
+  página, painel de teste ~550 linhas de markup abaixo) **e** o botão ficava
+  habilitado num estado que só podia falhar (`pode_finalizar` sem limite superior,
+  enquanto a Tabela 7 cobre N de 2 a 6). Ver ARQUITETURA.md §10.
+- ✅ `pode_finalizar_agora(n)` = `2 ≤ n ≤ 6` + aviso explícito quando N > 6.
+- ✅ Erro visível **dentro do painel de teste** (`erroTeste`), junto aos botões;
+  explicação de por que o botão está desabilitado; fim dos `return` mudos.
+- ✅ `finalizar_sequencia_conn` extraído para teste com banco em memória; 5 testes
+  novos (sucesso + 3 casos de erro propagado + faixa de `pode_finalizar`).
+- 📌 **Princípio adotado:** nenhum comando pode falhar em silêncio — todo erro deve
+  aparecer **onde o usuário está olhando**.
+
 ## Etapa 6 — Testes em máquina fraca / Performance ⬜
 
 - ⬜ Validar RAM/disco/responsividade num notebook fraco real (requisito de leveza).

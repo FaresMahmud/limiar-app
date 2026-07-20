@@ -230,3 +230,52 @@ um único listener em `<svelte:window>`:
 
 Uma dica discreta ("Atalhos: 0 = Não respondeu · 1 = Respondeu · Backspace = Desfazer")
 fica logo abaixo dos botões.
+
+---
+
+## 10. Erros nunca podem falhar em silêncio (bug do botão "Finalizar")
+
+**Sintoma relatado:** na tela de execução do teste, o botão "Finalizar sequência e
+calcular limiar" "não fazia nada" — sem mensagem, sem travamento.
+
+**Causa raiz — duas falhas somadas, ambas de visibilidade:**
+
+1. **O erro existia, mas era invisível.** O `catch` do `finalizarTeste` gravava em
+   `erroMsg`, e o banner de `erroMsg` é renderizado **no topo da página**. Durante a
+   medição o pesquisador está com a tela rolada para baixo, no painel de teste (que
+   fica ~550 linhas de markup abaixo do banner). O erro era exibido **fora da
+   viewport** → visualmente, "nada acontecia".
+2. **O botão ficava habilitado num estado que só podia falhar.** `pode_finalizar`
+   era `n_nominal >= 2`, **sem limite superior**. Mas a Tabela 7 de Dixon cobre
+   apenas **N de 2 a 6** — então, se o pesquisador registrasse aplicações até N > 6,
+   o botão continuava verde, o comando era chamado e o motor de Dixon devolvia
+   `NNominalForaDaTabela`… cujo erro caía no caso (1) e sumia.
+
+> As três suspeitas iniciais foram descartadas por leitura de código: o handler
+> **estava** conectado (`onclick={finalizarTeste}`), os parâmetros **já** iam em
+> camelCase (`sequenciaId`) e o comando Rust **já** devolvia `Err` com mensagem clara.
+> O defeito estava na *apresentação* do erro e no *gate* do botão.
+
+**Correções:**
+
+- `pode_finalizar_agora(n)` = `n >= 2 && n <= N_NOMINAL_MAX (6)` — o botão só habilita
+  quando a finalização pode de fato dar certo (`sequencias.rs`, aplicado em
+  `registrar_resposta` e `desfazer_ultima_resposta`), com `aviso` explícito quando N > 6.
+- **Erro visível no ponto da ação:** novo estado `erroTeste` no frontend, renderizado
+  **dentro do painel de teste**, junto aos botões — usado por `finalizarTeste`,
+  `registrarResposta` e `desfazerUltima`. O banner global continua existindo.
+- **Explicação quando o botão está desabilitado** (antes ficava mudo): mostra se falta
+  reversão ou se N passou de 6.
+- **Fim dos `return` mudos:** os `if (!testandoSequencia) return;` dessas três funções
+  agora avisam o usuário em vez de sair silenciosamente.
+
+**Princípio geral do projeto:** *nenhum comando pode falhar em silêncio*. Toda ação
+disparada pelo usuário precisa (a) tratar o erro, e (b) exibi-lo **onde o usuário está
+olhando**. Erro capturado mas renderizado fora da viewport conta como falha silenciosa.
+
+**Testes:** `finalizar_sequencia_conn` foi extraído do comando para ser testável com
+banco em memória — `finalizar_sequencia_calcula_e_persiste_limiar` (sucesso, série
+Figure 6), `finalizar_sequencia_ja_finalizada_retorna_erro`,
+`finalizar_sequencia_vazia_retorna_erro`,
+`finalizar_sequencia_com_n_acima_de_6_retorna_erro_claro` e
+`pode_finalizar_respeita_faixa_da_tabela`.
