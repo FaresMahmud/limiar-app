@@ -119,7 +119,7 @@ Convenção de portas: Vite serve em **1420** (`strictPort`), HMR em 1421. O Tau
 
 ## 6. Pendências conhecidas (importante)
 
-1. **Obter valores de filamentos reais do laboratório principal e secundário** para validar os testes exatos (cujos d calculados devem dar ~0.3835 e ~0.4 respectivamente).
+1. **Obter os valores de gramagem dos conjuntos de filamentos A e B** para validar os testes exatos (cujos `d` calculados devem dar ~0.3835 e ~0.4 respectivamente).
 2. **Rust/Cargo com bloqueio do SAC nesta máquina.** O build completo do Tauri e macros das dependências são bloqueados pelo Smart App Control do Windows 11. O motor Dixon, o cálculo de `d` e os CRUDs foram testados isoladamente via `cargo test` em crates isolados e `rustc --test`.
 3. **Build/validação em macOS pendente.** O desenvolvimento é em Windows; o `.dmg` precisa ser gerado e testado num Mac depois (`tauri build` não faz cross-compile). Ver [docs/RESTRICOES.md](docs/RESTRICOES.md).
 4. **Teste em máquina fraca pendente** (requisito de leveza) — etapa 7 do roadmap.
@@ -162,7 +162,7 @@ lógica pura passa em `cargo test` (12/12). **Falta reconfirmar `npx tauri dev` 
 
 **Pendências abertas:**
 - `cargo test` da lógica de cálculo e banco de dados: ✅ 100% passaram (testados de forma isolada sem Tauri / SAC bloqueios). O build completo do app continua bloqueado pelo Smart App Control.
-- Obter valores reais dos filamentos do laboratório.
+- Obter os valores de gramagem dos conjuntos de filamentos.
 - `// VERIFICAR` em `dixon_table.rs`: semântica do incremento "+0,001" das 5 células "+1" — confirmar com o pesquisador.
 
 **Próxima etapa:** #6 do roadmap — testes em máquina fraca / performance.

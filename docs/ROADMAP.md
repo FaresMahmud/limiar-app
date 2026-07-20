@@ -207,5 +207,5 @@ Generalização do princípio da etapa 5.2 (ARQUITETURA.md §10 e §10.1).
 - ⬜ **Acesso a um Mac** para validar o build macOS (etapa 8).
 - ✅ Confirmar com o laboratório se `d` é média calculada ou passo fixo do kit (implementado como cálculo automático da média das diferenças consecutivas).
 - ✅ Obter e validar os valores reais de gramagem dos conjuntos de filamentos:
-  - ✅ **Kit do Laboratório Principal (Real e definitivo)**: `[0.02, 0.07, 0.16, 0.4, 1.0, 2.0, 4.0]`. O valor `d` calculado de forma automática é aproximadamente **0.3835**, o que bate exatamente com o histórico usado na planilha do laboratório.
-  - ⬜ **Kit do Segundo Laboratório (Colega)**: ainda pendente (aguardando valores reais do usuário).
+  - ✅ **Conjunto de filamentos A**: `[0.02, 0.07, 0.16, 0.4, 1.0, 2.0, 4.0]`. O valor `d` calculado automaticamente é aproximadamente **0.3835**, coerente com o cálculo manual de referência.
+  - ⬜ **Conjunto de filamentos B**: ainda pendente (aguardando os valores de gramagem).
