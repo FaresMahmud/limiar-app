@@ -42,11 +42,11 @@
 //! third decimal place is indicated)." Ou seja, "+1" = **+0,001 no terceiro
 //! decimal**.
 //!
-//! // VERIFICAR: a *condição de aplicação* do incremento é sutil. Interpretação
-//! adotada no motor: o incremento de +0,001 é aplicado apenas quando a primeira
-//! parte tem **mais de 4** respostas iguais (m > 4). Com m == 4 exatamente, usa-se
-//! o valor-base. O impacto é ínfimo (0,001 em log10 ≈ 0,23% no limiar) e só afeta
-//! séries com >=5 respostas iguais no início. Confirmar leitura com o pesquisador.
+//! **Condição de aplicação (validada com o pesquisador):** o incremento de +0,001
+//! é aplicado apenas quando a primeira parte tem **mais de 4** respostas iguais
+//! (m > 4). Com m == 4 exatamente, usa-se o valor-base da coluna OOOO. O impacto é
+//! ínfimo (0,001 em log10 ≈ 0,23% no limiar) e só afeta séries com >= 5 respostas
+//! iguais no início.
 
 /// Uma linha da Tabela 7: rótulo da segunda parte + os 4 valores de k das colunas
 /// O, OO, OOO, OOOO.

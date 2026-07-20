@@ -163,6 +163,6 @@ lógica pura passa em `cargo test` (12/12). **Falta reconfirmar `npx tauri dev` 
 **Pendências abertas:**
 - `cargo test` da lógica de cálculo e banco de dados: ✅ 100% passaram (testados de forma isolada sem Tauri / SAC bloqueios). O build completo do app continua bloqueado pelo Smart App Control.
 - Obter os valores de gramagem dos conjuntos de filamentos.
-- `// VERIFICAR` em `dixon_table.rs`: semântica do incremento "+0,001" das 5 células "+1" — confirmar com o pesquisador.
+- ✅ Semântica do incremento "+0,001" das 5 células "+1" da Tabela 7: **validada** (aplica-se só quando `m > 4`).
 
 **Próxima etapa:** #6 do roadmap — testes em máquina fraca / performance.

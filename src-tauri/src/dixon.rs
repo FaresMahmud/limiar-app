@@ -204,8 +204,7 @@ pub fn estimar_limiar(
     let mut k_base = linha.k[coluna];
 
     // Incremento "+1" (+0,001): apenas nas 5 células marcadas, na última coluna,
-    // e — pela interpretação adotada — só quando m > 4. Ver nota em dixon_table.rs.
-    // // VERIFICAR: confirmar a condição de aplicação com o pesquisador.
+    // e só quando m > 4 (condição validada com o pesquisador). Ver dixon_table.rs.
     let incremento_aplicado = coluna == 3 && linha.increment_last_col && m > 4;
     if incremento_aplicado {
         k_base += INCREMENTO_TERCEIRO_DECIMAL;

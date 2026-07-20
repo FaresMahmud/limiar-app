@@ -52,8 +52,8 @@ porque o build completo do app está bloqueado (ver abaixo).
   (⚠️ no Windows 11 essa opção, uma vez desligada, só volta reinstalando o Windows),
   ou compilar em outra máquina/VM sem SAC. Isso também será necessário para
   `npm run tauri dev`/`build`.
-- ⚠️ `// VERIFICAR`: condição de aplicação do incremento "+0,001" das 5 células
-  com sobrescrito "+1" — confirmar leitura do artigo com o pesquisador.
+- ✅ Condição de aplicação do incremento "+0,001" das 5 células com sobrescrito
+  "+1" **validada com o pesquisador**: aplica-se apenas quando `m > 4`.
 - Cálculo automático de `d` a partir do cadastro de filamentos fica para a etapa 2
   (aqui `d` é recebido como parâmetro).
 

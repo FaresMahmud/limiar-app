@@ -152,8 +152,9 @@ Passos (steps 3–5 do artigo):
 
 **As 5 células com sobrescrito `+1`** (N=5 `XXXX`; N=6 `XXOXX`, `XXXOX`, `XXXXO`,
 `XXXXX`): o artigo (step 4) indica um **incremento de +0,001 no terceiro decimal**.
-Interpretação adotada: aplicado apenas quando `m > 4`. Ver `// VERIFICAR` em
-`dixon_table.rs` — ponto a confirmar com o pesquisador (impacto ≈ 0,23% no limiar).
+Condição de aplicação **validada com o pesquisador**: o incremento entra apenas
+quando `m > 4` (com `m == 4` usa-se o valor-base). Impacto ≈ 0,23% no limiar. Ver a
+nota em [`dixon_table.rs`](../src-tauri/src/dixon_table.rs).
 
 ### Validação (exemplo do próprio artigo — Figure 6)
 
