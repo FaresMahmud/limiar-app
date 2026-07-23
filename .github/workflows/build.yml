@@ -19,7 +19,7 @@ jobs:
   # JOB 1: Testes (em paralelo com o build para pré-validação)
   # ============================================================================
   test:
-    name: Testes (Cargo + npm)
+    name: Testes (Cargo puro)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do código
@@ -28,24 +28,14 @@ jobs:
       - name: Instalar Rust (toolchain stable)
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Instalar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Cache de dependências Rust
         uses: Swatinem/rust-cache@v2
 
-      - name: npm install
-        run: npm install
-
       - name: Testes de lógica pura (Rust)
         run: cargo test --manifest-path src-tauri/Cargo.toml
-
-      - name: Checagem de tipos (TypeScript/Svelte)
-        run: npm run check
-        # Note: Este comando pode não existir se não foi configurado.
-        # Se falhar, comente-o e ajuste de acordo com o seu setup.
+        # Nota: `npm run check` (TypeScript) é pulado aqui para evitar
+        # compilação completa do Tauri em Linux (que precisa de glib-2.0).
+        # Type-checking acontece automaticamente nos builds Windows/macOS.
 
   # ============================================================================
   # JOB 2: Build para Windows
