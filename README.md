@@ -112,7 +112,7 @@ Tauri 2 · Rust · Svelte 5 · TypeScript · Vite · SQLite (via `rusqlite` no b
 
 Se você utilizar o Limiar em sua pesquisa, por favor cite:
 
-[[BADGE_DOI_AQUI]]
+[![DOI](https://zenodo.org/badge/10.5281/zenodo.21501921.svg)](https://doi.org/10.5281/zenodo.21501921)
 
 Ou veja o arquivo [CITATION.cff](./CITATION.cff) para o formato de citação estruturado.
 
