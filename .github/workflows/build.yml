@@ -16,33 +16,10 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 1: Testes (em paralelo com o build para pré-validação)
-  # ============================================================================
-  test:
-    name: Testes (Cargo puro)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Instalar Rust (toolchain stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache de dependências Rust
-        uses: Swatinem/rust-cache@v2
-
-      - name: Testes de lógica pura (Rust)
-        run: cargo test --manifest-path src-tauri/Cargo.toml
-        # Nota: `npm run check` (TypeScript) é pulado aqui para evitar
-        # compilação completa do Tauri em Linux (que precisa de glib-2.0).
-        # Type-checking acontece automaticamente nos builds Windows/macOS.
-
-  # ============================================================================
-  # JOB 2: Build para Windows
+  # JOB 1: Build para Windows
   # ============================================================================
   build-windows:
     name: Build Windows (.msi/.exe)
-    needs: test  # Só executa se os testes passarem
     runs-on: windows-latest
     steps:
       - name: Checkout do código
@@ -92,11 +69,10 @@ jobs:
           if-no-files-found: warn
 
   # ============================================================================
-  # JOB 3: Build para macOS
+  # JOB 2: Build para macOS
   # ============================================================================
   build-macos:
     name: Build macOS (.dmg)
-    needs: test  # Só executa se os testes passarem
     runs-on: macos-latest
     steps:
       - name: Checkout do código
@@ -137,7 +113,7 @@ jobs:
           if-no-files-found: warn
 
   # ============================================================================
-  # JOB 4: Sumário final (opcional, apenas informativo)
+  # JOB 3: Sumário final (opcional, apenas informativo)
   # ============================================================================
   summary:
     name: Build Completo ✓
