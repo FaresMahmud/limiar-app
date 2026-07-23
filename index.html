@@ -1,13 +1,412 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>limiar-app</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Limiar — Análise de limiar de von Frey pelo método de Dixon</title>
+<meta name="description" content="Software desktop leve e offline para calcular limiares de von Frey pelo método up-and-down de Dixon (1980). Gratuito e open-source.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0b0b10;
+    --ink-2:#131319;
+    --ink-3:#1b1b24;
+    --bone:#eae7f2;
+    --slate:#918da3;
+    --violet:#a855f7;
+    --violet-soft:#c9a3ff;
+    --amber:#f5a623;
+    --border:#25252f;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--bone);
+    font-family:'Inter',system-ui,sans-serif;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  a{color:inherit;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 28px;}
+
+  /* ---------- NAV ---------- */
+  nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(11,11,16,0.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+  }
+  nav .wrap{
+    display:flex;align-items:center;justify-content:space-between;
+    height:64px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:0.2px;}
+  .brand .dot{width:9px;height:9px;border-radius:2px;background:var(--violet);transform:rotate(45deg);flex:none;}
+  .navlinks{display:flex;gap:28px;font-size:14px;color:var(--slate);}
+  .navlinks a{text-decoration:none;transition:color .15s;}
+  .navlinks a:hover{color:var(--bone);}
+  .nav-cta{
+    background:var(--violet);color:#0b0b10;font-weight:600;font-size:13.5px;
+    padding:9px 16px;border-radius:8px;text-decoration:none;
+    transition:transform .15s, box-shadow .15s;
+  }
+  .nav-cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px -6px rgba(168,85,247,.6);}
+
+  /* ---------- HERO ---------- */
+  header.hero{padding:88px 0 64px;position:relative;overflow:hidden;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--violet-soft);
+    border:1px solid var(--border);background:var(--ink-2);
+    padding:6px 12px;border-radius:100px;margin-bottom:28px;
+  }
+  h1.hero-title{
+    font-size:clamp(38px,6vw,64px);
+    line-height:1.05;
+    margin:0 0 22px;
+    letter-spacing:-0.02em;
+    max-width:820px;
+  }
+  h1.hero-title .accent{color:var(--violet-soft);}
+  .hero-sub{
+    font-size:19px;color:var(--slate);max-width:600px;margin:0 0 38px;
+  }
+  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:64px;}
+  .btn-primary{
+    background:var(--violet);color:#0b0b10;font-weight:600;font-size:15px;
+    padding:14px 24px;border-radius:9px;text-decoration:none;
+    display:inline-flex;align-items:center;gap:9px;
+    transition:transform .15s, box-shadow .15s;
+  }
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 30px -8px rgba(168,85,247,.55);}
+  .btn-secondary{
+    border:1px solid var(--border);color:var(--bone);font-weight:500;font-size:15px;
+    padding:14px 22px;border-radius:9px;text-decoration:none;background:var(--ink-2);
+    display:inline-flex;align-items:center;gap:9px;
+    transition:border-color .15s, background .15s;
+  }
+  .btn-secondary:hover{border-color:var(--violet);background:var(--ink-3);}
+
+  /* staircase signature graphic */
+  .staircase-wrap{
+    border:1px solid var(--border);border-radius:var(--radius);
+    background:var(--ink-2);
+    padding:28px 28px 22px;
+    position:relative;
+  }
+  .staircase-label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--slate);
+    margin-bottom:18px;
+  }
+  .staircase-label .k{color:var(--violet-soft);}
+  svg.staircase{display:block;width:100%;height:auto;}
+  .staircase path.line{
+    fill:none;stroke:var(--violet);stroke-width:2.5;
+    stroke-dasharray:600;stroke-dashoffset:600;
+    animation:draw 2.2s ease forwards .3s;
+  }
+  .staircase .node{fill:var(--ink-2);stroke:var(--violet-soft);stroke-width:2;}
+  .staircase .node.x{fill:var(--violet-soft);}
+  .staircase .grid{stroke:var(--border);stroke-width:1;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+  @media (prefers-reduced-motion: reduce){
+    .staircase path.line{animation:none;stroke-dashoffset:0;}
+  }
+
+  /* ---------- SECTION SHARED ---------- */
+  section{padding:78px 0;border-top:1px solid var(--border);}
+  .section-head{max-width:620px;margin-bottom:48px;}
+  .section-eyebrow{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--violet-soft);
+    text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px;display:block;
+  }
+  h2{font-size:clamp(26px,3.4vw,36px);margin:0 0 14px;letter-spacing:-0.01em;}
+  .section-sub{color:var(--slate);font-size:16.5px;margin:0;}
+
+  /* ---------- PROBLEM ---------- */
+  .problem-grid{display:grid;grid-template-columns:1fr 1fr;gap:36px;}
+  @media (max-width:760px){.problem-grid{grid-template-columns:1fr;}}
+  .problem-card{
+    border:1px solid var(--border);border-radius:var(--radius);padding:26px;background:var(--ink-2);
+  }
+  .problem-card .tag{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.06em;
+    padding:4px 10px;border-radius:100px;display:inline-block;margin-bottom:16px;
+  }
+  .problem-card.before .tag{color:#f5a3a3;background:rgba(245,80,80,.08);border:1px solid rgba(245,80,80,.25);}
+  .problem-card.after .tag{color:var(--violet-soft);background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);}
+  .problem-card ul{margin:0;padding-left:20px;color:var(--slate);font-size:15px;}
+  .problem-card li{margin-bottom:10px;}
+  .problem-card li::marker{color:var(--slate);}
+
+  /* ---------- FEATURES ---------- */
+  .feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+  @media (max-width:820px){.feature-grid{grid-template-columns:1fr 1fr;}}
+  @media (max-width:560px){.feature-grid{grid-template-columns:1fr;}}
+  .feature{background:var(--ink-2);padding:28px 24px;}
+  .feature .icon{width:34px;height:34px;margin-bottom:18px;color:var(--violet-soft);}
+  .feature h3{font-size:16px;margin:0 0 8px;font-weight:600;}
+  .feature p{font-size:14.5px;color:var(--slate);margin:0;}
+
+  /* ---------- WHY (comparison) ---------- */
+  .why-box{
+    border:1px solid var(--border);border-radius:var(--radius);background:var(--ink-2);
+    padding:34px;
+  }
+  .why-box p{color:var(--slate);font-size:16px;max-width:680px;}
+  .why-box strong{color:var(--bone);}
+  .why-list{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 32px;margin-top:26px;}
+  @media (max-width:640px){.why-list{grid-template-columns:1fr;}}
+  .why-item{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;color:var(--bone);}
+  .why-item svg{flex:none;margin-top:2px;color:var(--violet-soft);}
+
+  /* ---------- DOWNLOAD ---------- */
+  .download-box{
+    border:1px solid var(--border);border-radius:var(--radius);
+    background:linear-gradient(160deg,var(--ink-3),var(--ink-2));
+    padding:44px;text-align:center;
+  }
+  .download-box h2{margin-bottom:10px;}
+  .platform-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:30px;}
+  .platform-card{
+    border:1px solid var(--border);border-radius:11px;background:var(--ink-2);
+    padding:20px 26px;min-width:180px;text-align:left;text-decoration:none;color:var(--bone);
+    transition:border-color .15s, transform .15s;
+  }
+  .platform-card:hover{border-color:var(--violet);transform:translateY(-2px);}
+  .platform-card .os{font-weight:600;font-size:15px;margin-bottom:4px;}
+  .platform-card .fmt{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--slate);}
+  .version-note{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--slate);margin-top:22px;}
+  .version-note a{color:var(--violet-soft);text-decoration:none;}
+  .version-note a:hover{text-decoration:underline;}
+  .warn-note{
+    margin-top:26px;font-size:13.5px;color:var(--slate);max-width:560px;margin-left:auto;margin-right:auto;
+    border-top:1px solid var(--border);padding-top:22px;
+  }
+  .warn-note b{color:var(--amber);}
+
+  /* ---------- CITE ---------- */
+  .cite-box{
+    border:1px solid var(--border);border-radius:var(--radius);background:var(--ink-2);
+    padding:30px 34px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;
+  }
+  .cite-box p{margin:0;color:var(--slate);font-size:14.5px;max-width:480px;}
+  .doi-badge{
+    font-family:'IBM Plex Mono',monospace;font-size:13px;
+    border:1px solid var(--border);background:var(--ink);
+    padding:10px 16px;border-radius:8px;color:var(--slate);
+  }
+
+  /* ---------- FOOTER ---------- */
+  footer{border-top:1px solid var(--border);padding:40px 0;}
+  footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
+  .footer-brand{display:flex;align-items:center;gap:9px;color:var(--slate);font-size:13.5px;}
+  .footer-brand .dot{width:7px;height:7px;background:var(--violet);border-radius:2px;transform:rotate(45deg);}
+  .footer-links{display:flex;gap:22px;font-size:13.5px;color:var(--slate);}
+  .footer-links a{text-decoration:none;transition:color .15s;}
+  .footer-links a:hover{color:var(--bone);}
+  .credit{font-size:12.5px;color:var(--slate);opacity:.75;}
+  .credit a{color:var(--slate);text-decoration:underline;text-underline-offset:2px;}
+  .credit a:hover{color:var(--violet-soft);}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span>Limiar</div>
+    <div class="navlinks">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#recursos">Recursos</a>
+      <a href="#diferenca">Por que existe</a>
+      <a href="#citar">Citação</a>
+    </div>
+    <a class="nav-cta" href="#download">Baixar</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Software livre &middot; código aberto &middot; sem custo</span>
+    <h1 class="hero-title">O limiar de von Frey, calculado <span class="accent">no instante em que o último teste termina.</span></h1>
+    <p class="hero-sub">Limiar é um aplicativo desktop leve para laboratórios que rodam o método up-and-down de Dixon (1980). Sem terminal, sem planilha à noite, sem internet necessária.</p>
+    <div class="hero-ctas">
+      <a class="btn-primary" href="#download">
+        Baixar gratuitamente
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 4v13m0 0l-5-5m5 5l5-5M5 20h14"/></svg>
+      </a>
+      <a class="btn-secondary" href="https://github.com/FaresMahmud/limiar-app" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49 0-.24-.01-.87-.01-1.71-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.5-1.11-1.5-.91-.64.07-.63.07-.63 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05a9.3 9.3 0 0 1 5 0c1.9-1.33 2.74-1.05 2.74-1.05.56 1.42.21 2.47.1 2.73.65.72 1.03 1.63 1.03 2.75 0 3.93-2.34 4.79-4.57 5.05.36.32.68.94.68 1.9 0 1.37-.01 2.48-.01 2.81 0 .27.18.6.69.49A10.26 10.26 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+        Ver código-fonte
+      </a>
+    </div>
+
+    <div class="staircase-wrap">
+      <div class="staircase-label">
+        <span>SEQUÊNCIA DE TESTE &middot; camundongo <span class="k">04</span></span>
+        <span>OXXOXO &rarr; k=<span class="k">0.831</span></span>
+      </div>
+      <svg class="staircase" viewBox="0 0 900 220" preserveAspectRatio="none">
+        <line class="grid" x1="0" y1="40" x2="900" y2="40"/>
+        <line class="grid" x1="0" y1="90" x2="900" y2="90"/>
+        <line class="grid" x1="0" y1="140" x2="900" y2="140"/>
+        <line class="grid" x1="0" y1="190" x2="900" y2="190"/>
+        <path class="line" d="M60,90 L210,40 L360,90 L510,140 L660,90 L810,140" />
+        <circle class="node" cx="60" cy="90" r="7"/>
+        <circle class="node x" cx="210" cy="40" r="7"/>
+        <circle class="node x" cx="360" cy="90" r="7"/>
+        <circle class="node" cx="510" cy="140" r="7"/>
+        <circle class="node x" cx="660" cy="90" r="7"/>
+        <circle class="node" cx="810" cy="140" r="7"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<section id="como-funciona">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-eyebrow">O problema</span>
+      <h2>A planilha à noite chega tarde demais</h2>
+      <p class="section-sub">Ferramentas antigas de terminal separam o teste do cálculo — o que devia ser uma decisão em tempo real vira um processo de dois passos, e um travamento no meio custa o experimento do dia.</p>
+    </div>
+    <div class="problem-grid">
+      <div class="problem-card before">
+        <span class="tag">FLUXO ANTIGO</span>
+        <ul>
+          <li>Terminal trava com sequências de 4 ou mais respostas iguais</li>
+          <li>Resultado só é calculado horas depois, digitando tudo à mão no Excel</li>
+          <li>Um clique errado no diálogo de confirmação apaga o teste inteiro</li>
+          <li>Decisão de estender a curva temporal chega tarde demais</li>
+        </ul>
+      </div>
+      <div class="problem-card after">
+        <span class="tag">COM LIMIAR</span>
+        <ul>
+          <li>Tabela de Dixon completa (N de 2 a 6), sem travar</li>
+          <li>Limiar calculado e exibido assim que o último teste é registrado</li>
+          <li>Cada resposta é gravada no instante do clique — nada se perde</li>
+          <li>Decisão de continuar ou parar, tomada na hora, no bancada</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="recursos">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-eyebrow">Recursos</span>
+      <h2>Feito para o fluxo real de um laboratório</h2>
+      <p class="section-sub">Não é uma calculadora isolada — é a estrutura inteira do experimento, do cadastro do animal ao gráfico final.</p>
+    </div>
+    <div class="feature-grid">
+      <div class="feature">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 19V6a2 2 0 0 1 2-2h9l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 4v5h5"/></svg>
+        <h3>Motor de Dixon completo</h3>
+        <p>Tabela de máxima verossimilhança do artigo original (1980), validada numericamente contra o exemplo resolvido do próprio paper.</p>
+      </div>
+      <div class="feature">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg>
+        <h3>Conjuntos de filamentos por kit</h3>
+        <p>Cadastre os filamentos do seu laboratório; o valor de <em>d</em> é calculado automaticamente, sem depender de conta manual.</p>
+      </div>
+      <div class="feature">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-6 8-6s8 2 8 6"/></svg>
+        <h3>Animais, grupos e experimentos</h3>
+        <p>Marcação, peso, cor de grupo e curva temporal com timepoints livres — tudo num único fluxo de cadastro.</p>
+      </div>
+      <div class="feature">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M7 14l4-5 3 3 5-7"/></svg>
+        <h3>Gráfico e estatística em log</h3>
+        <p>Média geométrica e erro padrão calculados em escala logarítmica — a forma estatisticamente correta para esse tipo de dado.</p>
+      </div>
+      <div class="feature">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16"/></svg>
+        <h3>Exportação para Prism, CSV, XLSX</h3>
+        <p>Dados brutos por réplica, prontos para colar direto numa tabela agrupada do GraphPad Prism.</p>
+      </div>
+      <div class="feature">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>
+        <h3>100% offline, leve o bastante</h3>
+        <p>Instalador de poucos MB, roda em notebook modesto — nenhum dado sai da máquina.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="diferenca">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-eyebrow">Por que existe</span>
+      <h2>Não é a única ferramenta para von Frey — é a combinação que faltava</h2>
+    </div>
+    <div class="why-box">
+      <p>Existem outras boas ferramentas para o método up-and-down: leitores de planilha escaneada, calculadoras web, plataformas comerciais completas. O Limiar não substitui nenhuma delas por ser "melhor" — ele ocupa um espaço específico que ficava sem opção:</p>
+      <div class="why-list">
+        <div class="why-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg><span><strong>App nativo</strong>, não uma aba de navegador — funciona sem internet, o dado nunca sai do laboratório.</span></div>
+        <div class="why-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg><span><strong>Gratuito e sem assinatura</strong>, diferente das plataformas comerciais de gestão de bioensaio.</span></div>
+        <div class="why-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg><span><strong>Entrada digital direta</strong>, sem depender de escanear fichas em papel.</span></div>
+        <div class="why-item"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg><span><strong>Código aberto</strong> — qualquer laboratório pode auditar exatamente como o número foi calculado.</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="download">
+  <div class="wrap">
+    <div class="download-box">
+      <h2>Baixe e comece a usar hoje</h2>
+      <p class="section-sub" style="margin:0 auto;">Instalador direto, sem cadastro, sem cartão de crédito.</p>
+      <div class="platform-row">
+        <a class="platform-card" href="https://github.com/FaresMahmud/limiar-app/releases/latest" target="_blank" rel="noopener">
+          <div class="os">Windows</div>
+          <div class="fmt">.msi &middot; instalador</div>
+        </a>
+        <a class="platform-card" href="https://github.com/FaresMahmud/limiar-app/releases/latest" target="_blank" rel="noopener">
+          <div class="os">macOS</div>
+          <div class="fmt">.dmg &middot; Apple Silicon &amp; Intel</div>
+        </a>
+      </div>
+      <div class="version-note">veja todas as versões em <a href="https://github.com/FaresMahmud/limiar-app/releases" target="_blank" rel="noopener">github.com/FaresMahmud/limiar-app/releases</a></div>
+      <div class="warn-note"><b>Nota:</b> como o Limiar não possui certificado de assinatura comercial, o sistema pode exibir um aviso de "editor desconhecido" na primeira execução — clique em "Mais informações → Executar assim mesmo" (Windows) ou libere nas Preferências de Segurança (macOS).</div>
+    </div>
+  </div>
+</section>
+
+<section id="citar">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="section-eyebrow">Uso acadêmico</span>
+      <h2>Como citar</h2>
+    </div>
+    <div class="cite-box">
+      <p>Se o Limiar foi usado para calcular os limiares do seu experimento, cite a versão utilizada no método do seu artigo.</p>
+      <a class="doi-badge" href="https://doi.org/10.5281/zenodo.21501921" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;transition:border-color .15s;">DOI: 10.5281/zenodo.21501921</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-brand"><span class="dot"></span>Limiar &middot; MIT License</div>
+    <div class="footer-links">
+      <a href="https://github.com/FaresMahmud/limiar-app" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/FaresMahmud/limiar-app/issues" target="_blank" rel="noopener">Relatar problema</a>
+      <a href="#download">Download</a>
+    </div>
+    <div class="credit">Desenvolvido por <a href="https://www.linkedin.com/in/fares-mahmud-412693376/" target="_blank" rel="noopener">Fares Mahmud</a> &middot; <a href="https://github.com/FaresMahmud" target="_blank" rel="noopener">GitHub</a></div>
+  </div>
+</footer>
+
+</body>
 </html>
