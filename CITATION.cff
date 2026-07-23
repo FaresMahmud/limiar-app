@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "Se você utilizar este software, por favor cite-o conforme abaixo."
+title: "Limiar — Ferramenta para análise de limiar de von Frey pelo método up-and-down de Dixon"
+authors:
+  - family-names: "Mahmud"
+    given-names: "Fares"
+version: 1.0.0
+date-released: 2026-07-22
+url: "https://github.com/FaresMahmud/limiar-app"
+repository-code: "https://github.com/FaresMahmud/limiar-app"
+license: MIT
+keywords:
+  - "von Frey"
+  - "up-and-down method"
+  - "Dixon"
+  - "nociception"
+  - "pharmacology"
+  - "neuroscience"

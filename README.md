@@ -9,6 +9,17 @@ farmacologia/neurociência, com dados persistidos localmente (sem planilha manua
 
 ---
 
+## 📥 Download
+
+Baixe a versão mais recente na página de [Releases](https://github.com/FaresMahmud/limiar-app/releases/latest).
+
+- **Windows**: baixe o arquivo `.msi` e execute o instalador.
+- **macOS**: baixe o arquivo `.dmg` e arraste para a pasta Applications.
+
+> ⚠️ Como o software não possui certificado de assinatura de código pago, o sistema operacional pode exibir um aviso de "editor desconhecido" na primeira execução. Isso é esperado para software gratuito/open-source sem certificado comercial — clique em "Mais informações" → "Executar assim mesmo" (Windows) ou permita a execução nas Preferências de Segurança (macOS).
+
+---
+
 ## Pré-requisitos (apenas para desenvolver)
 
 Quem só vai **usar** o app não precisa de nada disto — basta o instalador.
@@ -96,6 +107,14 @@ Se você **editar o código** e quiser testar localmente antes de fazer push:
 ## Stack
 
 Tauri 2 · Rust · Svelte 5 · TypeScript · Vite · SQLite (via `rusqlite` no backend).
+
+## 📖 Como citar
+
+Se você utilizar o Limiar em sua pesquisa, por favor cite:
+
+[[BADGE_DOI_AQUI]]
+
+Ou veja o arquivo [CITATION.cff](./CITATION.cff) para o formato de citação estruturado.
 
 ## Licença
 
