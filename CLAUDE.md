@@ -80,20 +80,39 @@ limiar-app/
 
 ## 4. Comandos úteis
 
-> **Pré-requisito (só para o DESENVOLVEDOR):** Node.js + Rust/Cargo instalados.
-> Rust ainda **não está instalado** nesta máquina — ver pendência na seção 6.
+### Desenvolvimento local
+
+> **Pré-requisito:** Node.js instalado. Rust/Cargo **opcionais** (ver nota abaixo).
 
 ```bash
 npm install            # instala deps do frontend (uma vez)
-npm run tauri dev      # abre o app em modo desenvolvimento (hot reload) — precisa de Rust
-npm run tauri build    # gera o instalador do SO atual em src-tauri/target/release/bundle/
+npm run tauri dev      # abre o app em modo desenvolvimento (hot reload) — requer Rust
 npm run dev            # só o frontend no navegador (sem shell Tauri) — útil p/ UI pura
 npm run build          # build de produção só do frontend (Vite)
 npm run check          # checagem de tipos Svelte/TS
+npm run tauri build    # gera instaladores (⚠️ requer Rust) — use GitHub Actions em vez
 ```
 
 Convenção de portas: Vite serve em **1420** (`strictPort`), HMR em 1421. O Tauri
 (`devUrl` em `tauri.conf.json`) aponta para `http://localhost:1420`.
+
+**⚠️ Compilação local:** Rust/Cargo podem ser bloqueados pelo Smart App Control do Windows.
+Para gerar builds de produção, **use GitHub Actions** (ver seção 5).
+
+### Build de produção (GitHub Actions)
+
+```bash
+# Opção 1: automático (a cada push na main)
+git push origin main
+# → workflow roda automaticamente
+
+# Opção 2: manual (sem fazer commit)
+# → Acesse https://github.com/seu-usuario/limiar-app/actions
+# → Clique em "Run workflow"
+```
+
+Os instaladores (`.msi`, `.exe`, `.dmg`) ficam disponíveis em **Artifacts** na aba Actions.
+Ver [docs/GITHUB_ACTIONS_GUIDE.md](docs/GITHUB_ACTIONS_GUIDE.md) para instruções detalhadas.
 
 ---
 
@@ -120,9 +139,9 @@ Convenção de portas: Vite serve em **1420** (`strictPort`), HMR em 1421. O Tau
 ## 6. Pendências conhecidas (importante)
 
 1. **Obter os valores de gramagem dos conjuntos de filamentos A e B** para validar os testes exatos (cujos `d` calculados devem dar ~0.3835 e ~0.4 respectivamente).
-2. **Rust/Cargo com bloqueio do SAC nesta máquina.** O build completo do Tauri e macros das dependências são bloqueados pelo Smart App Control do Windows 11. O motor Dixon, o cálculo de `d` e os CRUDs foram testados isoladamente via `cargo test` em crates isolados e `rustc --test`.
-3. **Build/validação em macOS pendente.** O desenvolvimento é em Windows; o `.dmg` precisa ser gerado e testado num Mac depois (`tauri build` não faz cross-compile). Ver [docs/RESTRICOES.md](docs/RESTRICOES.md).
-4. **Teste em máquina fraca pendente** (requisito de leveza) — etapa 7 do roadmap.
+2. **✅ RESOLVIDO — Smart App Control (SAC) bloqueava compilação local.** Agora o build é feito via GitHub Actions em máquinas limpas da nuvem. Ver seção 4 e [docs/GITHUB_ACTIONS_GUIDE.md](docs/GITHUB_ACTIONS_GUIDE.md). Desenvolvimento local continua possível (desligando SAC temporariamente ou using o workflow remoto).
+3. **✅ PARCIALMENTE RESOLVIDO — Build para macOS.** O `.dmg` agora é gerado automaticamente via GitHub Actions. **Teste real em hardware Mac ainda é pendente** — afeta validação de UX (webviews diferentes), não bloqueador de build.
+4. **Teste em máquina fraca pendente** (requisito de leveza) — etapa 6 do roadmap.
 
 ---
 

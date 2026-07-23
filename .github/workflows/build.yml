@@ -1,0 +1,163 @@
+name: Build Limiar (Windows + macOS)
+
+on:
+  # Acionamento manual: em https://github.com/seu-usuario/limiar-app/actions,
+  # clique em "Run workflow" para compilar sob demanda.
+  workflow_dispatch:
+
+  # Acionamento automático: a cada push na branch main.
+  # Remova a seção abaixo se preferir apenas compilação manual.
+  push:
+    branches:
+      - main
+
+env:
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ============================================================================
+  # JOB 1: Testes (em paralelo com o build para pré-validação)
+  # ============================================================================
+  test:
+    name: Testes (Cargo + npm)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar Rust (toolchain stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache de dependências Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: npm install
+        run: npm install
+
+      - name: Testes de lógica pura (Rust)
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Checagem de tipos (TypeScript/Svelte)
+        run: npm run check
+        # Note: Este comando pode não existir se não foi configurado.
+        # Se falhar, comente-o e ajuste de acordo com o seu setup.
+
+  # ============================================================================
+  # JOB 2: Build para Windows
+  # ============================================================================
+  build-windows:
+    name: Build Windows (.msi/.exe)
+    needs: test  # Só executa se os testes passarem
+    runs-on: windows-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar Rust (toolchain stable MSVC)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache de dependências Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Cache de node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: npm install
+        run: npm install
+
+      - name: Compilar com Tauri (Windows)
+        run: npm run tauri build
+
+      - name: Upload do artifact (.msi e .exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: limiar-windows
+          path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
+
+      - name: Upload do artifact (.exe portável, se existir)
+        uses: actions/upload-artifact@v4
+        with:
+          name: limiar-windows-portable
+          path: src-tauri/target/release/bundle/*.exe
+          if-no-files-found: warn
+
+  # ============================================================================
+  # JOB 3: Build para macOS
+  # ============================================================================
+  build-macos:
+    name: Build macOS (.dmg)
+    needs: test  # Só executa se os testes passarem
+    runs-on: macos-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar Rust (toolchain stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache de dependências Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Cache de node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: npm install
+        run: npm install
+
+      - name: Compilar com Tauri (macOS)
+        run: npm run tauri build
+
+      - name: Upload do artifact (.dmg)
+        uses: actions/upload-artifact@v4
+        with:
+          name: limiar-macos
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
+
+  # ============================================================================
+  # JOB 4: Sumário final (opcional, apenas informativo)
+  # ============================================================================
+  summary:
+    name: Build Completo ✓
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Build bem-sucedido
+        run: |
+          echo "✅ Build concluído com sucesso!"
+          echo "Acesse a aba 'Artifacts' desta execução para baixar os instaladores:"
+          echo "  - Windows: limiar-windows (arquivo .msi)"
+          echo "  - macOS: limiar-macos (arquivo .dmg)"

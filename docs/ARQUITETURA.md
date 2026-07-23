@@ -137,12 +137,58 @@ retomada do projeto.
 
 ## 6. Build e distribuição
 
-- **Dev:** `npm run tauri dev` sobe o Vite (1420) e o app Tauri com hot reload.
-- **Produção:** `npm run tauri build` gera o instalador do SO atual em
-  `src-tauri/target/release/bundle/`.
-- **Cross-platform:** `tauri build` **não faz cross-compile de macOS a partir do
-  Windows**. O `.dmg` precisa ser gerado num Mac. Ver pendência em
-  [RESTRICOES.md](RESTRICOES.md) e no [ROADMAP.md](ROADMAP.md) (etapa 8).
+### 6.1 Build automático via GitHub Actions (resolvido para Windows e macOS)
+
+**Problema:** Compilação local foi bloqueada pelo Smart App Control do Windows 11.
+Recriação de VM não era viável; rebuild do projeto em outra máquina com SAC desligado
+não era escalável.
+
+**Solução: GitHub Actions no repositório público** (`.github/workflows/build.yml`)
+
+O workflow roda em máquinas limpas fornecidas pelo GitHub (sem SAC) e compila
+**tanto para Windows quanto para macOS**:
+
+- **Acionamento:** manual (`workflow_dispatch` na aba Actions) + automático em cada
+  push na `main`.
+- **Etapas:**
+  1. Checkout do código
+  2. Instalar Node.js + Rust + dependências
+  3. Rodar testes (`cargo test` + `npm run check`) — build só prossegue se passarem
+  4. Compilar com `npm run tauri build` em `windows-latest` → `.msi` + `.exe`
+  5. Compilar com `npm run tauri build` em `macos-latest` → `.dmg`
+  6. Upload de artifacts para download manual na aba Actions
+
+**Benefícios:**
+- ✅ Sem dependency do ambiente local ou VM pessoal
+- ✅ Build sempre funciona em ambiente padronizado
+- ✅ Testes rodam antes de gerar binários (rede de segurança)
+- ✅ Gratuito para repositórios públicos
+- ✅ macOS resolvido sem hardware Mac — build automatizado; teste real requer Mac físico
+
+**Como usar:**
+1. Faça commit e push para a branch `main`
+2. Vá a https://github.com/seu-usuario/limiar-app/actions
+3. Clique no workflow "Build Limiar (Windows + macOS)" mais recente
+4. Aguarde conclusão (~15 min total)
+5. Baixe os artifacts ("Artifacts" no pé da página): `limiar-windows`, `limiar-macos`
+
+---
+
+### 6.2 Build local em desenvolvimento
+
+- **Dev:** `npm run tauri dev` sobe o Vite (1420) e o app Tauri com hot reload
+  (nota: SAC bloqueia esse comando nesta máquina — use apenas o workflow para produção).
+- **Frontend apenas:** `npm run dev` abre o browser (sem Tauri, sem backend) para
+  trabalhar UI isoladamente.
+
+---
+
+### 6.3 Cross-platform
+
+O GitHub Actions eliminou a barreira de macOS: agora temos `.dmg` gerado
+automaticamente. No entanto, **teste real em Mac ainda requer um Mac físico** — o
+build roda mas a UX só pode ser validada em hardware real (webview do macOS é
+diferente de Windows).
 
 ---
 

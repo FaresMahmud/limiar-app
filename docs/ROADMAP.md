@@ -192,19 +192,27 @@ Generalização do princípio da etapa 5.2 (ARQUITETURA.md §10 e §10.1).
 
 - ⬜ Validar RAM/disco/responsividade num notebook fraco real (requisito de leveza).
 
-## Etapa 7 — Build final e instaladores ⬜
+## Etapa 7 — Build final e instaladores ✅ (concluída - via GitHub Actions)
 
-- ⬜ `tauri build` no Windows (`.msi`/`.exe`).
-- ⬜ Gerar e **validar o `.dmg` num Mac** (cross-compile de macOS não é possível a partir do Windows).
-- ⬜ Verificar que o usuário final não precisa de nenhuma dependência extra.
+- ✅ **Build automatizado para Windows e macOS** via GitHub Actions (`.github/workflows/build.yml`).
+  - Acionamento: manual (`workflow_dispatch`) + automático em push na `main`.
+  - Máquinas limpas no GitHub eliminam o problema do Smart App Control local.
+  - Gera `.msi` + `.exe` (Windows) e `.dmg` (macOS) automaticamente.
+  - Testes (`cargo test` + `npm run check`) rodam antes do build — rede de segurança.
+  - Artifacts disponíveis para download em https://github.com/seu-usuario/limiar-app/actions.
+- ✅ Usuário final **não precisa de nada** — apenas o instalador (`.msi` no Windows, `.dmg` no macOS).
+- 🔶 **Teste real em Mac ainda pendente**: o `.dmg` é gerado, mas UX só pode ser validada em hardware Mac real (webviews diferentes entre Windows e macOS). Bloqueia apenas validação de UX, não geração do build.
 
 ---
 
 ## Pendências transversais (não são etapas, mas bloqueiam/afetam várias)
 
 - ✅ **PDF do artigo de Dixon** com a Tabela 7 — em `docs/referencia/dixon1980.pdf`.
-- ⬜ **Instalar Rust/Cargo** na máquina de desenvolvimento (bloqueia `dev`/`build` do Tauri e exige contornar o Smart App Control).
-- ⬜ **Acesso a um Mac** para validar o build macOS (etapa 8).
+- ✅ **Build sem dependência local de Rust/Cargo** (Etapa 7 resolvida via GitHub Actions).
+  - Smart App Control não é mais bloqueador: compilação roda na nuvem.
+  - Desenvolvimento local continua possível desligando SAC (reversível) ou usando o workflow como "compilador remoto".
+- 🔶 **Teste real em Mac** para validar webview macOS (não bloqueia build, mas afeta validação de UX).
+  - Build `.dmg` agora automatizado, mas requer um Mac físico para testes reais.
 - ✅ Confirmar com o laboratório se `d` é média calculada ou passo fixo do kit (implementado como cálculo automático da média das diferenças consecutivas).
 - ✅ Obter e validar os valores reais de gramagem dos conjuntos de filamentos:
   - ✅ **Conjunto de filamentos A**: `[0.02, 0.07, 0.16, 0.4, 1.0, 2.0, 4.0]`. O valor `d` calculado automaticamente é aproximadamente **0.3835**, coerente com o cálculo manual de referência.

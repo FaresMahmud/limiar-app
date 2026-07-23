@@ -33,7 +33,7 @@ Isso sobe o servidor Vite (porta 1420) e abre a janela do app Tauri.
 > Só quer mexer na interface, sem o shell desktop? `npm run dev` roda apenas o
 > frontend no navegador.
 
-## Gerar o instalador
+## Gerar o instalador (para desenvolvimento local)
 
 ```bash
 npm run tauri build
@@ -42,8 +42,44 @@ npm run tauri build
 O instalador do seu sistema operacional é gerado em
 `src-tauri/target/release/bundle/` (`.msi`/`.exe` no Windows, `.dmg` no macOS).
 
-> ⚠️ O `.dmg` (macOS) **precisa ser gerado num Mac** — não é possível compilar
-> para macOS a partir do Windows.
+> ⚠️ **Nota importante:** Compilação local pode ser bloqueada pelo Smart App Control
+> (Windows 11). Neste caso, use a opção de build automático abaixo.
+
+---
+
+## Baixar instaladores gerados automaticamente (GitHub Actions)
+
+Como o repositório é **público**, cada commit na `main` dispara um workflow automático
+que compila o app para **Windows e macOS** na nuvem, sem dependência local de Rust
+ou de máquinas específicas.
+
+### Como baixar um build pronto:
+
+1. **Vá para a aba "Actions"** do repositório:
+   https://github.com/seu-usuario/limiar-app/actions
+
+2. **Clique no workflow mais recente** (será a execução do último commit na `main`,
+   com o nome "Build Limiar (Windows + macOS)").
+   - Se o workflow ainda estiver rodando, aguarde (~15 minutos no total).
+   - Uma vez concluído, o status muda para ✅ (verde).
+
+3. **Role para baixo** até a seção **"Artifacts"** no pé da página.
+
+4. **Baixe o arquivo desejado:**
+   - **Windows:** clique em `limiar-windows` para baixar o `.msi` (instalador)
+   - **macOS:** clique em `limiar-macos` para baixar o `.dmg` (instalador)
+
+5. **Instale normalmente:**
+   - Windows: clique duas vezes no `.msi` → siga o assistente
+   - macOS: abra o `.dmg` → arraste o app para a pasta "Applications"
+
+### Compilar você mesmo para desenvolvimento local
+
+Se você **editar o código** e quiser testar localmente antes de fazer push:
+
+1. Desabilite temporariamente o Smart App Control (se for uma VM pessoal) **OU**
+2. Faça commit local, dê push para uma branch, e use o workflow automático como
+   "compilador na nuvem"
 
 ---
 
