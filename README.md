@@ -11,10 +11,14 @@ farmacologia/neurociência, com dados persistidos localmente (sem planilha manua
 
 ## 📥 Download
 
-Baixe a versão mais recente na página de [Releases](https://github.com/FaresMahmud/limiar-app/releases/latest).
+Baixe o instalador da versão mais recente com **um clique** — não é preciso ter
+conta no GitHub:
 
-- **Windows**: baixe o arquivo `.msi` e execute o instalador.
-- **macOS**: baixe o arquivo `.dmg` e arraste para a pasta Applications.
+- ⬇️ **[Baixar para Windows (.msi)](https://github.com/FaresMahmud/limiar-app/releases/latest/download/limiar-windows-setup.msi)** — execute o instalador.
+- ⬇️ **[Baixar para macOS (.dmg)](https://github.com/FaresMahmud/limiar-app/releases/latest/download/limiar-macos.dmg)** — abra e arraste para a pasta Applications.
+
+> Os links acima sempre apontam para a versão mais recente. Veja todas as versões
+> na página de [Releases](https://github.com/FaresMahmud/limiar-app/releases/latest).
 
 > ⚠️ Como o software não possui certificado de assinatura de código pago, o sistema operacional pode exibir um aviso de "editor desconhecido" na primeira execução. Isso é esperado para software gratuito/open-source sem certificado comercial — clique em "Mais informações" → "Executar assim mesmo" (Windows) ou permita a execução nas Preferências de Segurança (macOS).
 
@@ -67,7 +71,7 @@ ou de máquinas específicas.
 ### Como baixar um build pronto:
 
 1. **Vá para a aba "Actions"** do repositório:
-   https://github.com/seu-usuario/limiar-app/actions
+   https://github.com/FaresMahmud/limiar-app/actions
 
 2. **Clique no workflow mais recente** (será a execução do último commit na `main`,
    com o nome "Build Limiar (Windows + macOS)").

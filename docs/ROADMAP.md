@@ -199,7 +199,7 @@ Generalização do princípio da etapa 5.2 (ARQUITETURA.md §10 e §10.1).
   - Máquinas limpas no GitHub eliminam o problema do Smart App Control local.
   - Gera `.msi` + `.exe` (Windows) e `.dmg` (macOS) automaticamente.
   - Testes (`cargo test` + `npm run check`) rodam antes do build — rede de segurança.
-  - Artifacts disponíveis para download em https://github.com/seu-usuario/limiar-app/actions.
+  - Artifacts disponíveis para download em https://github.com/FaresMahmud/limiar-app/actions.
 - ✅ Usuário final **não precisa de nada** — apenas o instalador (`.msi` no Windows, `.dmg` no macOS).
 - 🔶 **Teste real em Mac ainda pendente**: o `.dmg` é gerado, mas UX só pode ser validada em hardware Mac real (webviews diferentes entre Windows e macOS). Bloqueia apenas validação de UX, não geração do build.
 

@@ -167,7 +167,7 @@ O workflow roda em máquinas limpas fornecidas pelo GitHub (sem SAC) e compila
 
 **Como usar:**
 1. Faça commit e push para a branch `main`
-2. Vá a https://github.com/seu-usuario/limiar-app/actions
+2. Vá a https://github.com/FaresMahmud/limiar-app/actions
 3. Clique no workflow "Build Limiar (Windows + macOS)" mais recente
 4. Aguarde conclusão (~15 min total)
 5. Baixe os artifacts ("Artifacts" no pé da página): `limiar-windows`, `limiar-macos`

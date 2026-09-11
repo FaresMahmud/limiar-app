@@ -1,7 +1,7 @@
 name: Build Limiar (Windows + macOS)
 
 on:
-  # Acionamento manual: em https://github.com/seu-usuario/limiar-app/actions,
+  # Acionamento manual: em https://github.com/FaresMahmud/limiar-app/actions,
   # clique em "Run workflow" para compilar sob demanda.
   workflow_dispatch:
 
@@ -10,6 +10,15 @@ on:
   push:
     branches:
       - main
+    # Acionamento por tag de versão (ex.: v1.0.0, v1.2.3): além de compilar,
+    # anexa automaticamente os instaladores à GitHub Release correspondente.
+    tags:
+      - 'v*.*.*'
+
+# Necessário para o softprops/action-gh-release conseguir criar/atualizar a
+# Release e fazer upload dos instaladores usando o GITHUB_TOKEN.
+permissions:
+  contents: write
 
 env:
   RUST_BACKTRACE: 1
@@ -68,6 +77,22 @@ jobs:
           path: src-tauri/target/release/bundle/*.exe
           if-no-files-found: warn
 
+      # ----- Publicação na Release (apenas em push de tag vX.Y.Z) -----
+      - name: Renomear instalador para nome estável (Windows)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          msi=$(ls src-tauri/target/release/bundle/msi/*.msi | head -n1)
+          cp "$msi" "release-assets/limiar-windows-setup.msi"
+
+      - name: Anexar instalador à Release (Windows)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/limiar-windows-setup.msi
+          fail_on_unmatched_files: true
+
   # ============================================================================
   # JOB 2: Build para macOS
   # ============================================================================
@@ -111,6 +136,22 @@ jobs:
           name: limiar-macos
           path: src-tauri/target/release/bundle/dmg/*.dmg
           if-no-files-found: warn
+
+      # ----- Publicação na Release (apenas em push de tag vX.Y.Z) -----
+      - name: Renomear instalador para nome estável (macOS)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          dmg=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)
+          cp "$dmg" "release-assets/limiar-macos.dmg"
+
+      - name: Anexar instalador à Release (macOS)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/limiar-macos.dmg
+          fail_on_unmatched_files: true
 
   # ============================================================================
   # JOB 3: Sumário final (opcional, apenas informativo)

@@ -107,7 +107,7 @@ git push origin main
 # → workflow roda automaticamente
 
 # Opção 2: manual (sem fazer commit)
-# → Acesse https://github.com/seu-usuario/limiar-app/actions
+# → Acesse https://github.com/FaresMahmud/limiar-app/actions
 # → Clique em "Run workflow"
 ```
 

@@ -35,7 +35,7 @@ Neste momento, o workflow é **acionado automaticamente**.
 
 1. **Vá para seu repositório no GitHub:**
    ```
-   https://github.com/seu-usuario/limiar-app
+   https://github.com/FaresMahmud/limiar-app
    ```
 
 2. **Clique na aba "Actions"** (no topo do repositório):
@@ -49,7 +49,7 @@ Neste momento, o workflow é **acionado automaticamente**.
 
    Ou acesse direto:
    ```
-   https://github.com/seu-usuario/limiar-app/actions
+   https://github.com/FaresMahmud/limiar-app/actions
    ```
 
 ---
@@ -62,7 +62,7 @@ Na página de Actions, você verá uma lista de execuções. A mais recente fica
 Workflow "Build Limiar (Windows + macOS)"
 
 📋 Build Limiar (Windows + macOS)  →  ⏳ In progress (ou ✅ Completed)
-   └─ Triggered by: seu-usuario
+   └─ Triggered by: FaresMahmud
    └─ Branch: main
    └─ Commit: abc123de (sua mensagem de commit)
    └─ Started: 2 minutes ago
@@ -170,7 +170,7 @@ Se o erro for no seu código:
 
 Se quiser compilar **sem** fazer commit, use `workflow_dispatch`:
 
-1. **Acesse Actions** → https://github.com/seu-usuario/limiar-app/actions
+1. **Acesse Actions** → https://github.com/FaresMahmud/limiar-app/actions
 2. **Clique em "Build Limiar (Windows + macOS)"** (no painel lateral esquerdo)
 3. Clique em **"Run workflow"** (botão azul à direita)
 4. Confirme a branch (`main`)
