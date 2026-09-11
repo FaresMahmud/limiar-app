@@ -103,8 +103,10 @@ jobs:
       - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Instalar Rust (toolchain stable)
+      - name: Instalar Rust (toolchain stable + alvos Intel e Apple Silicon)
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
 
       - name: Instalar Node.js
         uses: actions/setup-node@v4
@@ -127,14 +129,15 @@ jobs:
       - name: npm install
         run: npm install
 
-      - name: Compilar com Tauri (macOS)
-        run: npm run tauri build
+      # Binário universal: um único .dmg que roda em Macs Intel e Apple Silicon.
+      - name: Compilar com Tauri (macOS universal)
+        run: npm run tauri build -- --target universal-apple-darwin
 
       - name: Upload do artifact (.dmg)
         uses: actions/upload-artifact@v4
         with:
           name: limiar-macos
-          path: src-tauri/target/release/bundle/dmg/*.dmg
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: warn
 
       # ----- Publicação na Release (apenas em push de tag vX.Y.Z) -----
@@ -143,7 +146,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
-          dmg=$(ls src-tauri/target/release/bundle/dmg/*.dmg | head -n1)
+          dmg=$(ls src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -n1)
           cp "$dmg" "release-assets/limiar-macos.dmg"
 
       - name: Anexar instalador à Release (macOS)
