@@ -15,7 +15,7 @@ use experimentos::{
 };
 use sequencias::{
     iniciar_sequencia, registrar_resposta, desfazer_ultima_resposta, finalizar_sequencia,
-    obter_sequencia_ativa, listar_sequencias_concluidas, cancelar_sequencia,
+    reabrir_sequencia, obter_sequencia_ativa, listar_sequencias_concluidas, cancelar_sequencia,
     calcular_estatisticas_experimento, obter_respostas_cruas_experimento, obter_limiares_experimento,
 };
 use serde::{Deserialize, Serialize};
@@ -198,6 +198,7 @@ pub fn run() {
         registrar_resposta,
         desfazer_ultima_resposta,
         finalizar_sequencia,
+        reabrir_sequencia,
         obter_sequencia_ativa,
         listar_sequencias_concluidas,
         cancelar_sequencia,

@@ -579,6 +579,75 @@ pub fn finalizar_sequencia_conn(
     })
 }
 
+/// Reabre uma sequência já **concluída** para correção.
+///
+/// Volta o status para `em_andamento` e limpa o limiar e todos os campos
+/// derivados (estimativa_log, k_dixon, d_usado, n_nominal). As respostas O/X já
+/// registradas são **preservadas**: o usuário desfaz/re-registra o que precisar
+/// e finaliza de novo — o limiar é recalculado a partir da série corrigida.
+/// Assim o número nunca é digitado à mão; continua sempre derivado da sequência.
+#[tauri::command]
+pub fn reabrir_sequencia(
+    app_handle: tauri::AppHandle,
+    sequencia_id: i64,
+) -> Result<(), String> {
+    let conn = obter_conexao(&app_handle)?;
+
+    // 1. Buscar status, animal e timepoint da sequência.
+    let (status, animal_id, timepoint_id): (String, i64, i64) = conn
+        .query_row(
+            "SELECT status, animal_id, timepoint_id FROM sequencias_teste WHERE id = ?1",
+            params![sequencia_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|e| format!("Sequência não encontrada: {}", e))?;
+
+    if status == "em_andamento" {
+        return Err("Esta sequência já está em andamento.".to_string());
+    }
+    if status != "concluida" {
+        return Err(format!(
+            "Só é possível reabrir uma sequência concluída (status atual: {}).",
+            status
+        ));
+    }
+
+    // 2. Não permitir duas sequências ativas para o mesmo animal/timepoint.
+    let mut stmt = conn
+        .prepare(
+            "SELECT id FROM sequencias_teste \
+             WHERE animal_id = ?1 AND timepoint_id = ?2 AND status = 'em_andamento' AND id != ?3",
+        )
+        .map_err(|e| format!("Falha ao verificar sequências ativas: {}", e))?;
+    let existe_outra_ativa = stmt
+        .exists(params![animal_id, timepoint_id, sequencia_id])
+        .map_err(|e| format!("Erro ao consultar banco: {}", e))?;
+    if existe_outra_ativa {
+        return Err(
+            "Já existe outra sequência em andamento para este animal e timepoint. \
+             Finalize ou descarte-a antes de reabrir esta."
+                .to_string(),
+        );
+    }
+
+    // 3. Reabrir: volta a 'em_andamento' e limpa os campos derivados do cálculo.
+    conn.execute(
+        "UPDATE sequencias_teste SET \
+         status = 'em_andamento', \
+         limiar = NULL, \
+         estimativa_log = NULL, \
+         k_dixon = NULL, \
+         d_usado = NULL, \
+         n_nominal = NULL, \
+         atualizado_em = CURRENT_TIMESTAMP \
+         WHERE id = ?1",
+        params![sequencia_id],
+    )
+    .map_err(|e| format!("Falha ao reabrir a sequência: {}", e))?;
+
+    Ok(())
+}
+
 /// Obtém a sequência de teste em andamento para o animal e timepoint informado (se existir).
 #[tauri::command]
 pub fn obter_sequencia_ativa(

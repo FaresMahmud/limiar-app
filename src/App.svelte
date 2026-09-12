@@ -331,6 +331,37 @@
     }
   }
 
+  // Reabre um teste JÁ CONCLUÍDO para correção: apaga o limiar salvo, volta a
+  // sequência para "em andamento" (preservando os cliques O/X) e leva o usuário
+  // de volta à tela de teste. Ele desfaz/re-registra o que precisar e finaliza
+  // de novo — o limiar é recalculado a partir da série corrigida.
+  async function reabrirTeste(animal: Animal, timepoint: Timepoint, seqId: number) {
+    if (!confirm(
+      `Reabrir o teste de "${animal.marcacao}" neste timepoint?\n\n` +
+      `O limiar salvo será apagado. As respostas O/X registradas são mantidas — ` +
+      `você poderá corrigi-las (ou desfazer tudo para refazer do zero) e finalizar ` +
+      `de novo para recalcular o limiar.`
+    )) {
+      return;
+    }
+    erroMsg = null;
+    erroTeste = null;
+    try {
+      carregando = true;
+      await invokeCommand('reabrir_sequencia', { sequenciaId: seqId });
+      if (selectedExpId !== null) {
+        listSequencias = await invokeCommand<any[]>('listar_sequencias_concluidas', { experimentoId: selectedExpId });
+      }
+      // Reaproveita o fluxo de retomada de sequência em andamento.
+      await abrirSequenciaEmAndamento(animal, timepoint, seqId);
+    } catch (e: any) {
+      erroTeste = "Não foi possível reabrir o teste: " + (e.message || e);
+      erroMsg = "Erro ao reabrir teste: " + (e.message || e);
+    } finally {
+      carregando = false;
+    }
+  }
+
   function iniciarFormularioTeste(animal: Animal, timepoint: Timepoint) {
     testandoAnimal = animal;
     testandoTimepoint = timepoint;
@@ -2270,6 +2301,9 @@
                                     <div class="badge-threshold" title="Inicial: {seq.filamento_inicial}g | Cliques: {seq.respostas} | d = {seq.d_usado || '?'}" style="border-left: 4px solid {g.cor};">
                                       {seq.limiar !== null && seq.limiar !== undefined ? `${seq.limiar.toFixed(3)} g` : '—'}
                                     </div>
+                                    <button class="btn-reopen-test" onclick={() => reabrirTeste(a, tp, seq.id)} disabled={carregando} title="Reabrir este teste para corrigir os cliques e recalcular o limiar">
+                                      ⟲ Reabrir
+                                    </button>
                                   {:else if seq.status === 'em_andamento'}
                                     <button class="badge-in-progress" onclick={() => abrirSequenciaEmAndamento(a, tp, seq.id)}>
                                       🧪 Retomar ({seq.respostas.length})
@@ -2524,7 +2558,32 @@
   .btn-test-action:hover {
     background-color: var(--accent-bg);
   }
-  
+
+  .btn-reopen-test {
+    background-color: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 3px 8px;
+    margin-top: 5px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: block;
+  }
+
+  .btn-reopen-test:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background-color: var(--accent-bg);
+  }
+
+  .btn-reopen-test:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   /* Painel de Teste Ativo */
   .active-test-panel {
     background: var(--bg);
