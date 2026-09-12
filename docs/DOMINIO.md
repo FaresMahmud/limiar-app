@@ -164,6 +164,25 @@ Decodificação: primeira parte `O` (m=1), segunda parte `XXOXO`, N=6, coluna O 
 artigo ("0.602 + 0.831(0.301) = 0.852"). Teste automatizado em `dixon.rs`
 (`figura6_exemplo_do_artigo`).
 
+### Convenção de fronteira (4 respostas iguais) — validada com o pesquisador
+
+A Tabela 7 não tem estimativa para uma série **sem reversão** (todas as respostas
+iguais). O laboratório adota, para **todos os timepoints**, esta regra de fronteira:
+quando o animal dá **4 respostas iguais desde o início** (sem nenhuma reversão), o
+teste é **encerrado** e recebe um `k` fixo. O limiar continua **derivado** pela
+fórmula normal `10^(log10(xf) + k·d)` — o número nunca é digitado à mão.
+
+| Série (4+ iguais) | Significado | `k` |
+|-------------------|-------------|-----|
+| **XXXX** (respondeu / retirou a pata em todas) | "muita dor" | **−0,831** |
+| **OOOO** (não respondeu em nenhuma) | "anestesiado" | **+0,378** |
+
+Implementação: `estimar_limiar` em [`dixon.rs`](../src-tauri/src/dixon.rs) (constantes
+`K_FRONTEIRA_TODAS_X` / `K_FRONTEIRA_TODAS_O`, mínimo `MIN_RESPOSTAS_FRONTEIRA = 4`);
+`pode_finalizar_serie` em [`sequencias.rs`](../src-tauri/src/sequencias.rs) habilita a
+finalização nesse caso. Teste: `fronteira_quatro_iguais`. Com **menos de 4** iguais a
+série segue inconclusiva (erro `SerieSemReversao`, o teste continua).
+
 ---
 
 ## 5. Outros conceitos de negócio

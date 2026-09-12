@@ -123,6 +123,18 @@ pub struct Estimativa {
     pub erro_padrao_sigma: f64,
 }
 
+/// Convenção de fronteira do laboratório (confirmada com o pesquisador).
+///
+/// Quando a série tem **4 ou mais respostas iguais desde o início** (sem nenhuma
+/// reversão), o teste é encerrado e recebe um `k` fixo — o limiar continua sendo
+/// **derivado** da série pela fórmula normal `10^(log10(xf) + k·d)`, nunca digitado.
+/// - Série toda **X** (animal respondeu / retirou a pata 4×; "muita dor"): `k = -0.831`
+/// - Série toda **O** (animal não respondeu 4×; "anestesiado"):            `k = +0.378`
+pub const K_FRONTEIRA_TODAS_X: f64 = -0.831;
+pub const K_FRONTEIRA_TODAS_O: f64 = 0.378;
+/// Nº mínimo de respostas iguais consecutivas para encerrar por fronteira.
+pub const MIN_RESPOSTAS_FRONTEIRA: usize = 4;
+
 /// Estima o limiar (LD50/PWT) a partir da série de respostas up-and-down.
 ///
 /// # Parâmetros
@@ -163,8 +175,35 @@ pub fn estimar_limiar(
     let lider = respostas[0];
     let m = respostas.iter().take_while(|&&x| x == lider).count();
 
-    // Todas iguais => sem segunda parte => sem reversão => sem estimativa.
+    // Todas iguais => sem reversão. A Tabela 7 não tem estimativa aqui, mas a
+    // convenção de fronteira do laboratório encerra o teste com um k fixo quando
+    // há 4+ respostas iguais desde o início (ver constantes acima).
     if m == respostas.len() {
+        if m >= MIN_RESPOSTAS_FRONTEIRA {
+            let k = if lider.respondeu() {
+                K_FRONTEIRA_TODAS_X
+            } else {
+                K_FRONTEIRA_TODAS_O
+            };
+            let xf = *doses.last().expect("doses não-vazio já validado");
+            let xf_log10 = xf.log10();
+            let estimativa_log = xf_log10 + k * d;
+            let limiar = 10f64.powf(estimativa_log);
+            return Ok(Estimativa {
+                limiar,
+                estimativa_log,
+                k,
+                xf_log10,
+                d,
+                n_nominal: m,
+                second_part: String::new(),
+                coluna: 0,
+                sinal_invertido: lider.respondeu(),
+                incremento_aplicado: false,
+                erro_padrao_sigma: 0.0,
+            });
+        }
+        // Menos de 4 iguais: teste ainda inconclusivo (sem reversão).
         return Err(DixonError::SerieSemReversao);
     }
 
@@ -372,6 +411,36 @@ mod tests {
         assert_eq!(
             estimar_limiar(&[O, X], &[1.0, 2.0], 0.0),
             Err(DixonError::DInvalido { valor: 0.0 })
+        );
+    }
+
+    /// Convenção de fronteira: 4 respostas iguais desde o início encerram o teste
+    /// com k fixo. Toda X (respondeu 4×) => k = -0.831. Toda O => k = +0.378.
+    /// Com 3 iguais ainda é SerieSemReversao (não atinge o mínimo de 4).
+    #[test]
+    fn fronteira_quatro_iguais() {
+        let d = 0.3;
+
+        // 4× X (animal retirou a pata sempre): desce de filamento a cada X.
+        let doses_x = [1.0, 0.5, 0.25, 0.125];
+        let ex = estimar_limiar(&[X, X, X, X], &doses_x, d).expect("deve estimar por fronteira");
+        assert!((ex.k - (-0.831)).abs() < TOL, "k (XXXX) = {} (esperado -0.831)", ex.k);
+        // Limiar continua derivado: 10^(log10(xf) + k·d), com xf = última dose.
+        let esperado_log_x = doses_x[3].log10() + (-0.831) * d;
+        assert!((ex.estimativa_log - esperado_log_x).abs() < 1e-9);
+        assert!((ex.limiar - 10f64.powf(esperado_log_x)).abs() < 1e-9);
+
+        // 4× O (animal não respondeu nunca): sobe de filamento a cada O.
+        let doses_o = [1.0, 2.0, 4.0, 8.0];
+        let eo = estimar_limiar(&[O, O, O, O], &doses_o, d).expect("deve estimar por fronteira");
+        assert!((eo.k - 0.378).abs() < TOL, "k (OOOO) = {} (esperado 0.378)", eo.k);
+        let esperado_log_o = doses_o[3].log10() + 0.378 * d;
+        assert!((eo.limiar - 10f64.powf(esperado_log_o)).abs() < 1e-9);
+
+        // 3 iguais ainda NÃO dispara a fronteira.
+        assert_eq!(
+            estimar_limiar(&[X, X, X], &[1.0, 0.5, 0.25], d),
+            Err(DixonError::SerieSemReversao)
         );
     }
 }

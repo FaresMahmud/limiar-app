@@ -511,7 +511,8 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         const proximo = mockSugerirProximo(kitValores, filamento_testado, resposta);
         const respostasStr = respostas.map(r => r.resposta);
         const n_nominal = mockCalcularNNominal(respostasStr);
-        const pode_finalizar = n_nominal >= 2 && n_nominal <= 6; // Tabela 7 cobre N de 2 a 6
+        const eFronteira = respostasStr.length >= 4 && respostasStr.every(r => r === respostasStr[0]);
+        const pode_finalizar = (n_nominal >= 2 && n_nominal <= 6) || eFronteira; // Tabela 7 (N 2..6) ou fronteira (4+ iguais)
 
         return {
           sequencia_id,
@@ -570,7 +571,8 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
 
         const respostasStr = respostas.map(r => r.resposta);
         const n_nominal = mockCalcularNNominal(respostasStr);
-        const pode_finalizar = n_nominal >= 2 && n_nominal <= 6; // Tabela 7 cobre N de 2 a 6
+        const eFronteira = respostasStr.length >= 4 && respostasStr.every(r => r === respostasStr[0]);
+        const pode_finalizar = (n_nominal >= 2 && n_nominal <= 6) || eFronteira; // Tabela 7 (N 2..6) ou fronteira (4+ iguais)
 
         return {
           sequencia_id,
@@ -601,10 +603,10 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         }
 
         const respostasStr = respostas.map(r => r.resposta);
-        const temO = respostasStr.includes("O");
-        const temX = respostasStr.includes("X");
-        if (!temO || !temX) {
-          throw new Error("A série de testes não possui nenhuma reversão (alteração de resposta). Adicione respostas alternadas antes de finalizar.");
+        const temReversao = respostasStr.includes("O") && respostasStr.includes("X");
+        const eFronteira = respostasStr.length >= 4 && respostasStr.every(r => r === respostasStr[0]);
+        if (!temReversao && !eFronteira) {
+          throw new Error("A série de testes não possui nenhuma reversão (alteração de resposta). Registre 4 respostas iguais (fronteira) ou uma reversão antes de finalizar.");
         }
 
         // Achar kit d
@@ -623,7 +625,10 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         const xf = respostas[respostas.length - 1].filamento_g;
         let k = 0.5;
         const respJoined = respostasStr.join("");
-        if (respJoined === "OXXOXO") {
+        if (eFronteira) {
+          // Fronteira: 4+ iguais. Toda X => -0.831; toda O => +0.378.
+          k = respostasStr[0] === "X" ? -0.831 : 0.378;
+        } else if (respJoined === "OXXOXO") {
           k = 0.831;
         } else if (respJoined === "XOOXOX") {
           k = -0.831;
@@ -632,7 +637,7 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
         }
 
         const limiar = Math.pow(10, Math.log10(xf) + k * d);
-        const n_nominal = mockCalcularNNominal(respostasStr);
+        const n_nominal = eFronteira ? respostasStr.length : mockCalcularNNominal(respostasStr);
 
         seq.status = 'concluida';
         seq.limiar = limiar;
@@ -648,6 +653,20 @@ export async function invokeCommand<T>(cmd: string, args: Record<string, any> = 
           d,
           n_nominal
         } as unknown as T;
+      }
+
+      case 'reabrir_sequencia': {
+        const { sequenciaId } = args;
+        const seq = mockSequencias.find(s => s.id === sequenciaId);
+        if (!seq) throw new Error("Sequência não encontrada.");
+        if (seq.status === 'em_andamento') throw new Error("Esta sequência já está em andamento.");
+        if (seq.status !== 'concluida') throw new Error(`Só é possível reabrir uma sequência concluída (status atual: ${seq.status}).`);
+        seq.status = 'em_andamento';
+        seq.limiar = null;
+        seq.k_dixon = undefined;
+        seq.d_usado = undefined;
+        seq.n_nominal = undefined;
+        return undefined as unknown as T;
       }
 
       case 'obter_sequencia_ativa': {

@@ -153,6 +153,43 @@ fn aviso_n_excedido(n_nominal: usize) -> Option<String> {
     }
 }
 
+/// Série de fronteira: `MIN_RESPOSTAS_FRONTEIRA`+ respostas iguais desde o início
+/// (sem nenhuma reversão). Nesses casos o teste é encerrado com um k fixo (ver
+/// `dixon.rs`) e precisa ser finalizável mesmo com N nominal = 0.
+pub fn e_serie_fronteira(respostas: &[String]) -> bool {
+    if respostas.len() < crate::dixon::MIN_RESPOSTAS_FRONTEIRA {
+        return false;
+    }
+    let lider = &respostas[0];
+    respostas.iter().all(|r| r == lider)
+}
+
+/// Pode finalizar se o N nominal está na faixa da Tabela 7 (2..=6) **ou** se é uma
+/// série de fronteira (4+ respostas iguais desde o início).
+pub fn pode_finalizar_serie(respostas: &[String]) -> bool {
+    pode_finalizar_agora(calcular_n_nominal_atual(respostas)) || e_serie_fronteira(respostas)
+}
+
+/// Aviso exibido quando a série atinge a condição de fronteira (4+ iguais),
+/// orientando o usuário a finalizar (o score de fronteira será atribuído).
+fn aviso_fronteira(respostas: &[String]) -> Option<String> {
+    if !e_serie_fronteira(respostas) {
+        return None;
+    }
+    let (rotulo, k) = if respostas[0] == "X" {
+        ("respondeu (retirou a pata) em todas", crate::dixon::K_FRONTEIRA_TODAS_X)
+    } else {
+        ("não respondeu em nenhuma", crate::dixon::K_FRONTEIRA_TODAS_O)
+    };
+    Some(format!(
+        "Série de fronteira: o animal {} as {} aplicações. Encerre o teste \
+         (Finalizar) — será atribuído o score de fronteira de Dixon k = {}.",
+        rotulo,
+        respostas.len(),
+        k
+    ))
+}
+
 pub fn calcular_n_nominal_atual(respostas: &[String]) -> usize {
     if respostas.is_empty() {
         return 0;
@@ -328,8 +365,10 @@ pub fn registrar_resposta(
     
     let respostas_str: Vec<String> = respostas_atuais.iter().map(|r| r.resposta.clone()).collect();
     let n_nominal = calcular_n_nominal_atual(&respostas_str);
-    let pode_finalizar = pode_finalizar_agora(n_nominal);
-    let aviso = aviso_n_excedido(n_nominal).or(aviso);
+    let pode_finalizar = pode_finalizar_serie(&respostas_str);
+    let aviso = aviso_fronteira(&respostas_str)
+        .or_else(|| aviso_n_excedido(n_nominal))
+        .or(aviso);
 
     Ok(ProximaSugestaoDto {
         sequencia_id,
@@ -433,8 +472,10 @@ pub fn desfazer_ultima_resposta(
 
     let respostas_str: Vec<String> = respostas_restantes.iter().map(|r| r.resposta.clone()).collect();
     let n_nominal = calcular_n_nominal_atual(&respostas_str);
-    let pode_finalizar = pode_finalizar_agora(n_nominal);
-    let aviso = aviso_n_excedido(n_nominal).or(aviso);
+    let pode_finalizar = pode_finalizar_serie(&respostas_str);
+    let aviso = aviso_fronteira(&respostas_str)
+        .or_else(|| aviso_n_excedido(n_nominal))
+        .or(aviso);
 
     Ok(ProximaSugestaoDto {
         sequencia_id,
