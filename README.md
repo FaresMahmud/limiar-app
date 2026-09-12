@@ -7,15 +7,17 @@ farmacologia/neurociência, com dados persistidos localmente (sem planilha manua
 
 > Interface em **português (pt-BR)**. Funciona **100% offline**.
 
+🌐 **Site oficial:** **[faresmahmud.github.io/limiar-app](https://faresmahmud.github.io/limiar-app/)** — página de apresentação com os botões de download.
+
 ---
 
 ## 📥 Download
 
-Baixe o instalador da versão mais recente com **um clique** — não é preciso ter
-conta no GitHub:
+Baixe pelo **[site oficial](https://faresmahmud.github.io/limiar-app/#download)** ou
+direto pelos links abaixo (versão mais recente, **um clique**, sem conta no GitHub):
 
 - ⬇️ **[Baixar para Windows (.msi)](https://github.com/FaresMahmud/limiar-app/releases/latest/download/limiar-windows-setup.msi)** — execute o instalador.
-- ⬇️ **[Baixar para macOS (.dmg)](https://github.com/FaresMahmud/limiar-app/releases/latest/download/limiar-macos.dmg)** — abra e arraste para a pasta Applications.
+- ⬇️ **[Baixar para macOS (.dmg)](https://github.com/FaresMahmud/limiar-app/releases/latest/download/limiar-macos.dmg)** — Apple Silicon e Intel (universal); abra e arraste para a pasta Applications.
 
 > Os links acima sempre apontam para a versão mais recente. Veja todas as versões
 > na página de [Releases](https://github.com/FaresMahmud/limiar-app/releases/latest).
